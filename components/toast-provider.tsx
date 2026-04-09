@@ -39,6 +39,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       // Remove surrounding quotes if present (e.g., "message" -> message)
       const cleanedMessage = toastMessage.replace(/^["']|["']$/g, '');
       addToast(cleanedMessage, toastType);
+
+      // Remove toast params from URL
+      const params = new URLSearchParams(searchParams);
+      params.delete('toast');
+      params.delete('type');
+      
+      const newUrl = params.toString() 
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname;
+      
+      window.history.replaceState(null, '', newUrl);
     }
   }, [searchParams]);
 
