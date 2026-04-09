@@ -29,29 +29,33 @@ export const useToast = () => {
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const searchParams = useSearchParams();
+  const [handledToast, setHandledToast] = useState(false);
 
   // Handle toast from URL params on mount
   useEffect(() => {
+    if (handledToast) return;
+
     const toastMessage = searchParams.get('toast');
-    const toastType = (searchParams.get('type') as ToastMessage['type']) || 'info';
+    const toastType = (searchParams.get('toastType') as ToastMessage['type']) || 'info';
 
     if (toastMessage) {
       // Remove surrounding quotes if present (e.g., "message" -> message)
       const cleanedMessage = toastMessage.replace(/^["']|["']$/g, '');
+      setHandledToast(true);
       addToast(cleanedMessage, toastType);
 
       // Remove toast params from URL
       const params = new URLSearchParams(searchParams);
       params.delete('toast');
-      params.delete('type');
-      
-      const newUrl = params.toString() 
+      params.delete('toastType');
+
+      const newUrl = params.toString()
         ? `${window.location.pathname}?${params.toString()}`
         : window.location.pathname;
-      
+
       window.history.replaceState(null, '', newUrl);
     }
-  }, [searchParams]);
+  }, [searchParams, handledToast]);
 
   const addToast = (message: string, type: ToastMessage['type'] = 'info') => {
     const id = Date.now().toString();
