@@ -36,7 +36,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const toastType = (searchParams.get('type') as ToastMessage['type']) || 'info';
 
     if (toastMessage) {
-      addToast(decodeURIComponent(toastMessage), toastType);
+      // Remove surrounding quotes if present (e.g., "message" -> message)
+      const cleanedMessage = toastMessage.replace(/^["']|["']$/g, '');
+      addToast(cleanedMessage, toastType);
     }
   }, [searchParams]);
 
