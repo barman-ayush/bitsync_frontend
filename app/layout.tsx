@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { UserProvider } from '@/contexts/user.context'
 import { ToastProvider } from '@/components/toast-provider'
-import { ProtectedRoute } from '@/components/protected-route'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -55,9 +54,7 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <UserProvider>
           <ToastProvider>
-            <ProtectedRoute>
-              {children}
-            </ProtectedRoute>
+            {children}
           </ToastProvider>
         </UserProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

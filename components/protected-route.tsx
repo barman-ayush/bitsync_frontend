@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/user.context';
+import { ErrorResponse, AuthSuccessResponse } from '@/types';
 
 const PROTECTED_ROUTES: string[] = [];
 
@@ -11,6 +12,7 @@ function isProtectedRoute(pathname: string): boolean {
     (route) => pathname === route || pathname.startsWith(route + '/'),
   );
 }
+
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, setUser } = useUser();
@@ -29,7 +31,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let cancelled = false;
 
     async function verify() {
       try {
@@ -38,37 +39,33 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           { credentials: 'include', redirect: 'manual' },
         );
 
-        // Backend sent a redirect (auth failed) — opaque redirect has type "opaqueredirect"
-        if (res.type === 'opaqueredirect' || res.status === 0) {
-          // Can't read redirect Location with opaque response,
-          // fall back to a full page reload so the browser follows the redirect natively
-          window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/user/data`;
-          return;
-        }
+        const data = await res.json();
 
         if (!res.ok) {
-          router.replace('/?toast=Please log in to continue&toastType=error');
+          const error = data as ErrorResponse;
+          router.replace(`/?toast=${error.message}&toastType=${error.status}`);
           return;
         }
 
-        const json = await res.json();
+        const successData = data as AuthSuccessResponse;
+        setUser({
+          id: successData.data.id,
+          email: successData.data.email,
+          displayName: successData.data.displayName,
+          avatarUrl: successData.data.avatarUrl,
+          emailVerified: successData.data.emailVerified,
+          createdAt: String(successData.data.createdAt),
+        });
+        setStatus('authorized');
 
-        if (!cancelled && json.status === 'success' && json.data) {
-          setUser(json.data);
-          setStatus('authorized');
-        }
       } catch {
-        if (!cancelled) {
-          router.replace('/?toast=Something went wrong&toastType=error');
-        }
+        router.replace(`/?toast=Something went wrong&toastType=error`);
       }
     }
 
     verify();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { };
   }, [pathname, user, setUser, router]);
 
   // Public route — render immediately

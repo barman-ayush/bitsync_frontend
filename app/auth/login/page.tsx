@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Eye, EyeOff } from 'lucide-react';
+import { ErrorResponse, AuthSuccessResponse } from '@/types';
+import { useUser } from '@/contexts/user.context';
 
 const loginSchema = z.object({
   email: z.string({ message: 'Email is required.' }).email('Invalid email address.'),
@@ -20,8 +22,10 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setUser } = useUser();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [userData , setUserData] = useState<LoginFormData>({email : "" , password : ""});
 
   const {
     register,
@@ -31,20 +35,37 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async () => {
     try {
       setServerError('');
-      // TODO: Implement actual login API call
-      console.log('Login data:', data);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const data : AuthSuccessResponse | ErrorResponse = await response.json();
 
-      // For now, redirect to verify email page (in case of new unverified account)
-      // In production, this would depend on API response
-      router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
-    } catch (error) {
-      setServerError('Invalid email or password.');
-      console.error('Login error:', error);
+      if (!response.ok) {
+        const error = data as ErrorResponse;
+        setServerError(error.message);
+        return;
+      }
+
+      const successData = data as AuthSuccessResponse;
+      setUser({
+        id: successData.data.id,
+        email: successData.data.email,
+        displayName: successData.data.displayName,
+        avatarUrl: successData.data.avatarUrl,
+        emailVerified: successData.data.emailVerified,
+        createdAt: String(successData.data.createdAt),
+      });
+
+      router.push(`/?toast=${successData.message}&toastType=${successData.status}`);
+    } catch (e) {
+      setServerError('Something went wrong. Please try again.');
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4 py-12">
@@ -68,7 +89,9 @@ export default function LoginPage() {
               id="email"
               type="email"
               placeholder="you@example.com"
-              {...register('email')}
+              {...register('email', {
+                onChange: (e) => setUserData((prev) => ({ ...prev, email: e.target.value })),
+              })}
               className="bg-input border-border"
             />
             {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
@@ -89,7 +112,9 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter your password"
-                {...register('password')}
+                {...register('password' , {
+                  onChange : (e) => {setUserData((prev) => ({ ...prev, password : e.target.value }))}
+                })}
                 className="bg-input border-border pr-10"
               />
               <button

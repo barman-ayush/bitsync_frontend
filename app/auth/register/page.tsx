@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Eye, EyeOff } from 'lucide-react';
+import { AuthSuccessResponse, ErrorResponse } from '@/types';
+import { useUser } from '@/contexts/user.context';
 
 const registerSchema = z
   .object({
@@ -41,10 +43,44 @@ interface FieldError {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { setUser } = useUser()
+  const [userData, setUserData] = useState<RegisterFormData>({ name: "", email: "", password: "", confirmPassword: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [serverError, setServerError] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<FieldError[]>([]);
+
+  const handleRegisterFormSubmit: () => Promise<void> = async () => {
+    try {
+      setServerError('');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      const data: AuthSuccessResponse | ErrorResponse = await response.json();
+
+      if (!response.ok) {
+        const error = data as ErrorResponse;
+        setServerError(error.message);
+        return;
+      }
+
+      const successData = data as AuthSuccessResponse;
+      setUser({
+        id: successData.data.id,
+        email: successData.data.email,
+        displayName: successData.data.displayName,
+        avatarUrl: successData.data.avatarUrl,
+        emailVerified: successData.data.emailVerified,
+        createdAt: String(successData.data.createdAt),
+      });
+
+      router.push(`/?toast=${successData.message}&toastType=${successData.status}`);
+    } catch (e) {
+      setServerError('Something went wrong. Please try again.');
+    }
+  }
 
   const {
     register,
@@ -116,7 +152,11 @@ export default function RegisterPage() {
             <Input
               id="name"
               placeholder="John Doe"
-              {...register('name')}
+              {...register('name', {
+                onChange: (e) => {
+                  setUserData((prev) => ({ ...prev, name: e.target.value }));
+                },
+              })}
               className="bg-input border-border"
             />
             {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
@@ -131,7 +171,11 @@ export default function RegisterPage() {
               id="email"
               type="email"
               placeholder="you@example.com"
-              {...register('email')}
+              {...register('email', {
+                onChange: (e) => {
+                  setUserData((prev) => ({ ...prev, email: e.target.value }));
+                },
+              })}
               className="bg-input border-border"
             />
             {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
@@ -147,11 +191,12 @@ export default function RegisterPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter your password"
-                {...register('password')}
-                onChange={(e) => {
-                  register('password').onChange(e);
-                  validatePassword(e.target.value);
-                }}
+                {...register('password', {
+                  onChange: (e) => {
+                    setUserData((prev) => ({ ...prev, password: e.target.value }));
+                    validatePassword(e.target.value);
+                  },
+                })}
                 className="bg-input border-border pr-10"
               />
               <button
@@ -180,14 +225,12 @@ export default function RegisterPage() {
                   ].map((req, idx) => (
                     <div
                       key={idx}
-                      className={`flex items-center gap-2 text-xs transition ${
-                        req.regex.test(password) ? 'text-accent' : 'text-muted-foreground'
-                      }`}
+                      className={`flex items-center gap-2 text-xs transition ${req.regex.test(password) ? 'text-accent' : 'text-muted-foreground'
+                        }`}
                     >
                       <div
-                        className={`h-1.5 w-1.5 rounded-full transition ${
-                          req.regex.test(password) ? 'bg-accent' : 'bg-border'
-                        }`}
+                        className={`h-1.5 w-1.5 rounded-full transition ${req.regex.test(password) ? 'bg-accent' : 'bg-border'
+                          }`}
                       />
                       {req.text}
                     </div>
@@ -209,7 +252,11 @@ export default function RegisterPage() {
                 id="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
                 placeholder="Confirm your password"
-                {...register('confirmPassword')}
+                {...register('confirmPassword', {
+                  onChange: (e) => {
+                    setUserData((prev) => ({ ...prev, confirmPassword: e.target.value }));
+                  },
+                })}
                 className="bg-input border-border pr-10"
               />
               <button
@@ -230,6 +277,7 @@ export default function RegisterPage() {
             type="submit"
             disabled={isSubmitting}
             className="w-full bg-primary hover:bg-primary/90 mt-6"
+
           >
             {isSubmitting ? 'Creating account...' : 'Create Account'}
           </Button>
