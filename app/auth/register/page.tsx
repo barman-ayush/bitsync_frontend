@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -43,12 +43,16 @@ interface FieldError {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { setUser } = useUser()
+  const { user,setUser } = useUser()
   const [userData, setUserData] = useState<RegisterFormData>({ name: "", email: "", password: "", confirmPassword: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [serverError, setServerError] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<FieldError[]>([]);
+
+  useEffect(() => {
+    if (user) router.push("/");
+  }, [user]);
 
   const handleRegisterFormSubmit: () => Promise<void> = async () => {
     try {
@@ -56,6 +60,7 @@ export default function RegisterPage() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(userData),
       });
       const data: AuthSuccessResponse | ErrorResponse = await response.json();
