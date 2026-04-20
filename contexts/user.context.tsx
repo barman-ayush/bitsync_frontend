@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export interface User {
     id: string;
@@ -22,6 +23,44 @@ const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
     const [user, setUserState] = useState<User | null>(null);
+    const router = useRouter();
+
+    useEffect(() => {
+        if (user) return;
+
+        async function rehydrate() {
+            try {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/user/data`,
+                    { credentials: 'include' },
+                );
+
+                if (!res.ok) {
+                    const body = await res.json();
+                    if (body.code === 'EMAIL_NOT_VERIFIED') {
+                        router.push('/auth/verify-email');
+                        return;
+                    }
+                    console.log('User not authenticated');
+                    return;
+                }
+
+                const { data } = await res.json();
+                setUserState({
+                    id: data.id,
+                    email: data.email,
+                    displayName: data.displayName,
+                    avatarUrl: data.avatarUrl,
+                    emailVerified: data.emailVerified,
+                    createdAt: String(data.createdAt),
+                });
+            } catch (e) {
+                console.log('Failed to fetch user data:', e);
+            }
+        }
+
+        rehydrate();
+    }, []);
 
     const setUser = useCallback((next: User | null) => {
         setUserState(next);

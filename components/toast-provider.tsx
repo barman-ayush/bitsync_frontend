@@ -36,7 +36,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     if (handledToast) return;
 
     const toastMessage = searchParams.get('toast');
-    const toastType = (searchParams.get('toastType') as ToastMessage['type']) || 'info';
+    const toastType = (searchParams.get('toastType') as ToastMessage['type']) || 'success';
 
     if (toastMessage) {
       // Remove surrounding quotes if present (e.g., "message" -> message)

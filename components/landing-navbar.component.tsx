@@ -1,9 +1,33 @@
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
+import { useUser } from "@/contexts/user.context";
+import { useRouter } from "next/navigation";
 
 export default function LandingaNavbar() {
+    const { user, clearUser } = useUser();
+    const router = useRouter();
 
+    const handleLogout = async () => {
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
+                method: 'GET',
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                console.log('Logout failed');
+                return;
+            }
+
+            clearUser();
+
+            router.push(`/?toast="Logged out successfully!!"&toastType="success"`)
+            
+        } catch (e) {
+            console.log("Network error : ", e);
+        }
+    }
 
     return <>
         <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-sm">
@@ -21,10 +45,23 @@ export default function LandingaNavbar() {
                 </div>
                 <div className="flex items-center gap-4">
                     <ThemeToggle />
-                    <Link href="/auth/login">
-                        <Button variant="outline" className="hidden sm:flex">Sign In</Button>
-                    </Link>
-                    <Button className="bg-primary hover:bg-primary/90">Get Started</Button>
+                    {
+                        !user ?
+                            (
+                                <>
+                                    <Link href="/auth/login">
+                                        <Button variant="outline" className="hidden sm:flex">Sign In</Button>
+                                    </Link>
+                                    <Button className="bg-primary hover:bg-primary/90">Get Started</Button>
+                                </>
+                            ) :
+                            (
+                                <>
+                                    <Button onClick={handleLogout} className="bg-primary hover:bg-primary/90">Logout</Button>
+                                </>
+                            )
+                    }
+
                 </div>
             </nav>
         </header>

@@ -5,15 +5,46 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Mail, ArrowLeft } from 'lucide-react';
+import { useUser } from '@/contexts/user.context';
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const email = searchParams.get('email') || 'your@email.com';
 
   const [timeLeft, setTimeLeft] = useState(60);
+  const { user } = useUser();
   const [canResend, setCanResend] = useState(false);
   const [isResending, setIsResending] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      router.push("/?toast=User Already Verified&toastType=info");
+      return;
+    }
+
+    async function sendVerificationEmail() {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/send-email`,
+          { credentials: 'include' },
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.log('Send email error:', data.message);
+          return;
+        }
+
+        if (data.message === 'Email is already verified.') {
+          router.push('/?toast=Email verified&toastType=success');
+        }
+      } catch (e) {
+        console.log('Failed to send verification email:', e);
+      }
+    }
+
+    sendVerificationEmail();
+  }, [])
 
   // Timer effect
   useEffect(() => {
@@ -32,20 +63,30 @@ export default function VerifyEmailPage() {
   const handleResend = useCallback(async () => {
     try {
       setIsResending(true);
-      // TODO: Implement actual resend email API call
-      console.log('Resending email to:', email);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/send-email`,
+        { credentials: 'include' },
+      );
+      const data = await res.json();
 
-      // Reset timer
+      if (!res.ok) {
+        console.log('Resend email error:', data.message);
+        return;
+      }
+
+      if (data.message === 'Email is already verified.') {
+        router.push('/?toast=Email verified&toastType=success');
+        return;
+      }
+
       setTimeLeft(60);
       setCanResend(false);
-
-      // In production, show success toast
-    } catch (error) {
-      console.error('Resend error:', error);
+    } catch (e) {
+      console.log('Failed to resend verification email:', e);
     } finally {
       setIsResending(false);
     }
-  }, [email]);
+  }, [router]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -78,7 +119,7 @@ export default function VerifyEmailPage() {
           <p className="text-muted-foreground">
             We&apos;ve sent a verification link to:
           </p>
-          <p className="font-medium text-foreground break-all">{email}</p>
+          <p className="font-medium text-foreground break-all">{user?.email}</p>
           <p className="text-sm text-muted-foreground pt-2">
             Click the link in the email to verify your account and get started with BitSync.
           </p>

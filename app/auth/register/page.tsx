@@ -76,7 +76,7 @@ export default function RegisterPage() {
         createdAt: String(successData.data.createdAt),
       });
 
-      router.push(`/?toast=${successData.message}&toastType=${successData.status}`);
+      router.push(`/auth/verify-email?email=${encodeURIComponent(successData.data.email)}`);
     } catch (e) {
       setServerError('Something went wrong. Please try again.');
     }
@@ -143,7 +143,7 @@ export default function RegisterPage() {
           <div className="mb-6 p-4 rounded-lg bg-destructive/10 text-destructive text-sm">{serverError}</div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={handleSubmit(handleRegisterFormSubmit)} className="space-y-5">
           {/* Name Field */}
           <div className="space-y-2">
             <label htmlFor="name" className="text-sm font-medium">

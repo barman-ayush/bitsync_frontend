@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,10 +22,10 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setUser } = useUser();
+  const { user, setUser } = useUser();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState('');
-  const [userData , setUserData] = useState<LoginFormData>({email : "" , password : ""});
+  const [userData, setUserData] = useState<LoginFormData>({ email: "", password: "" });
 
   const {
     register,
@@ -35,6 +35,11 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
+  useEffect(() => {
+    console.log("User data : ", user);
+    if (user) router.push("/");
+  }, []);
+
   const onSubmit = async () => {
     try {
       setServerError('');
@@ -43,7 +48,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
-      const data : AuthSuccessResponse | ErrorResponse = await response.json();
+      const data: AuthSuccessResponse | ErrorResponse = await response.json();
 
       if (!response.ok) {
         const error = data as ErrorResponse;
@@ -61,7 +66,7 @@ export default function LoginPage() {
         createdAt: String(successData.data.createdAt),
       });
 
-      router.push(`/?toast=${successData.message}&toastType=${successData.status}`);
+      router.push(`/?toast="${successData.message}"&toastType="${successData.status}"`);
     } catch (e) {
       setServerError('Something went wrong. Please try again.');
     }
@@ -112,8 +117,8 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter your password"
-                {...register('password' , {
-                  onChange : (e) => {setUserData((prev) => ({ ...prev, password : e.target.value }))}
+                {...register('password', {
+                  onChange: (e) => { setUserData((prev) => ({ ...prev, password: e.target.value })) }
                 })}
                 className="bg-input border-border pr-10"
               />
