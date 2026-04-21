@@ -22,7 +22,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, setUser } = useUser();
+  const { user, setUser, setIsLoading } = useUser();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState('');
   const [userData, setUserData] = useState<LoginFormData>({ email: "", password: "" });
@@ -42,6 +42,7 @@ export default function LoginPage() {
   const onSubmit = async () => {
     try {
       setServerError('');
+      setIsLoading(true);
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,6 +70,8 @@ export default function LoginPage() {
       router.push(`/?toast="${successData.message}"&toastType="${successData.status}"`);
     } catch (e) {
       setServerError('Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   }
 

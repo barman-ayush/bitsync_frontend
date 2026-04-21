@@ -43,7 +43,7 @@ interface FieldError {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { user,setUser } = useUser()
+  const { user, setUser, setIsLoading } = useUser()
   const [userData, setUserData] = useState<RegisterFormData>({ name: "", email: "", password: "", confirmPassword: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -57,6 +57,7 @@ export default function RegisterPage() {
   const handleRegisterFormSubmit: () => Promise<void> = async () => {
     try {
       setServerError('');
+      setIsLoading(true);
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,6 +85,8 @@ export default function RegisterPage() {
       router.push(`/auth/verify-email?email=${encodeURIComponent(successData.data.email)}`);
     } catch (e) {
       setServerError('Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   }
 

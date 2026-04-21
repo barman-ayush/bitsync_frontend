@@ -5,11 +5,12 @@ import { useUser } from "@/contexts/user.context";
 import { useRouter } from "next/navigation";
 
 export default function LandingaNavbar() {
-    const { user, clearUser } = useUser();
+    const { user, clearUser, setIsLoading } = useUser();
     const router = useRouter();
 
     const handleLogout = async () => {
         try {
+            setIsLoading(true);
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
                 method: 'GET',
                 credentials: 'include',
@@ -23,9 +24,11 @@ export default function LandingaNavbar() {
             clearUser();
 
             router.push(`/?toast="Logged out successfully!!"&toastType="success"`)
-            
+
         } catch (e) {
             console.log("Network error : ", e);
+        } finally {
+            setIsLoading(false);
         }
     }
 

@@ -17,17 +17,18 @@ interface UserContextValue {
     setUser: (user: User | null) => void;
     clearUser: () => void;
     isAuthenticated: boolean;
+    isLoading: boolean;
+    setIsLoading: (loading: boolean) => void;
 }
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
     const [user, setUserState] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
     const router = useRouter();
 
     useEffect(() => {
-        if (user) return;
-
         async function rehydrate() {
             try {
                 const res = await fetch(
@@ -56,6 +57,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 });
             } catch (e) {
                 console.log('Failed to fetch user data:', e);
+            } finally {
+                setIsLoading(false);
             }
         }
 
@@ -76,8 +79,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
             setUser,
             clearUser,
             isAuthenticated: user !== null,
+            isLoading,
+            setIsLoading,
         }),
-        [user, setUser, clearUser],
+        [user, setUser, clearUser, isLoading],
     );
 
     return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
