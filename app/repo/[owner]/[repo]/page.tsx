@@ -1,6 +1,7 @@
 import { RepoNavbar } from '@/components/repo-navbar';
 import { FileBrowser } from '@/components/file-browser';
 import { FileItem } from '@/types/files';
+import { Contributor } from '@/types/contributors';
 import { RepositoryPageContent } from '@/components/repository-page-content';
 
 // Mock data - replace with actual API calls
@@ -89,6 +90,49 @@ const mockFiles: FileItem[] = [
   },
 ];
 
+const mockContributors: Contributor[] = [
+  {
+    id: '1',
+    name: 'Ayush Barman',
+    email: 'ayush@bitsync.dev',
+    role: 'owner',
+    joinedAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActive: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: '2',
+    name: 'Sarah Johnson',
+    email: 'sarah@bitsync.dev',
+    role: 'admin',
+    joinedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActive: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: '3',
+    name: 'Mike Chen',
+    email: 'mike@example.com',
+    role: 'editor',
+    joinedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActive: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: '4',
+    name: 'Emma Davis',
+    email: 'emma@example.com',
+    role: 'editor',
+    joinedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActive: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: '5',
+    name: 'Alex Rodriguez',
+    email: 'alex@example.com',
+    role: 'viewer',
+    joinedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    lastActive: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 interface RepositoryPageProps {
   params: Promise<{
     owner: string;
@@ -100,6 +144,6 @@ export default async function RepositoryPage({ params }: RepositoryPageProps) {
   const { owner, repo } = await params;
 
   return (
-    <RepositoryPageContent owner={owner} repo={repo} files={mockFiles} />
+    <RepositoryPageContent owner={owner} repo={repo} files={mockFiles} contributors={mockContributors} />
   );
 }
