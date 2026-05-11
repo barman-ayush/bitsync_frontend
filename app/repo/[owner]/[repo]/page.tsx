@@ -1,16 +1,7 @@
-'use client';
-
 import { useState } from 'react';
 import { RepoNavbar } from '@/components/repo-navbar';
 import { FileBrowser } from '@/components/file-browser';
 import { FileItem } from '@/types/files';
-
-interface RepoPageProps {
-  params: {
-    owner: string;
-    repo: string;
-  };
-}
 
 // Mock data - replace with actual API calls
 const mockFiles: FileItem[] = [
@@ -98,9 +89,31 @@ const mockFiles: FileItem[] = [
   },
 ];
 
-export default function RepositoryPage({ params }: RepoPageProps) {
+interface RepositoryPageProps {
+  params: Promise<{
+    owner: string;
+    repo: string;
+  }>;
+}
+
+export default async function RepositoryPage({ params }: RepositoryPageProps) {
+  const { owner, repo } = await params;
+
+  return (
+    <RepositoryPageContent owner={owner} repo={repo} files={mockFiles} />
+  );
+}
+
+function RepositoryPageContent({
+  owner,
+  repo,
+  files,
+}: {
+  owner: string;
+  repo: string;
+  files: FileItem[];
+}) {
   const [activeTab, setActiveTab] = useState('files');
-  const { owner, repo } = params;
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -112,7 +125,7 @@ export default function RepositoryPage({ params }: RepoPageProps) {
       />
 
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'files' && <FileBrowser files={mockFiles} />}
+        {activeTab === 'files' && <FileBrowser files={files} />}
         {activeTab === 'contributors' && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             Contributors view coming soon
