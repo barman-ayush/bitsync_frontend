@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Mail, ArrowLeft } from 'lucide-react';
 import { useUser } from '@/contexts/user.context';
 
 export default function VerifyEmailPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
 
   const [timeLeft, setTimeLeft] = useState(60);
@@ -17,7 +16,7 @@ export default function VerifyEmailPage() {
   const [isResending, setIsResending] = useState(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && user.emailVerified) {
       router.push("/?toast=User Already Verified&toastType=info");
       return;
     }
