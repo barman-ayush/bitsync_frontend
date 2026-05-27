@@ -111,7 +111,7 @@ export function RepoNavbar() {
                 </>
               )}
               <DropdownMenuItem asChild>
-                <Link href={'/Repositories'} className="cursor-pointer">
+                <Link href={'/repositories'} className="cursor-pointer">
                   <FolderGit2 className="h-4 w-4" />
                   <span>All Repositories</span>
                 </Link>
