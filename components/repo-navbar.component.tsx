@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GitBranch, FolderGit2, User as UserIcon, LogOut } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
+import { NotificationsButton } from './notifications.component';
 import { useUser } from '@/contexts/user.context';
 import {
   DropdownMenu,
@@ -74,6 +75,7 @@ export function RepoNavbar() {
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
+          <NotificationsButton />
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

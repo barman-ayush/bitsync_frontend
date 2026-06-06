@@ -74,13 +74,15 @@ export function RepoSearchNavbar({
         <div className="px-6 md:px-12 lg:px-20 pt-6 pb-4 space-y-4">
             <div className="flex items-center justify-between gap-4">
                 <h1 className="text-2xl font-bold text-foreground">My Repositories</h1>
-                <Button
-                    onClick={onNewRepo}
-                    className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-                >
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">New repository</span>
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button
+                        onClick={onNewRepo}
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                    >
+                        <Plus className="h-4 w-4" />
+                        <span className="hidden sm:inline">New repository</span>
+                    </Button>
+                </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">

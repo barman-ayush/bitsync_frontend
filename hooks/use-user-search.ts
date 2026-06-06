@@ -49,7 +49,7 @@ export function useUserRepositorySearch(query: string, debounceMs = 400, repoId 
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery]);
+  }, [debouncedQuery, repoId]);
 
   return { status, results, debouncedQuery };
 }

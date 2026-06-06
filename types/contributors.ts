@@ -1,4 +1,4 @@
-export type ContributorRole = 'owner' | 'admin' | 'editor' | 'viewer';
+export type ContributorRole = 'owner' | 'admin' | 'member';
 
 export interface Contributor {
     id: string;

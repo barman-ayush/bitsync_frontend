@@ -1,6 +1,16 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { RepoTabs, type RepoTabId } from '@/components/repo-tabs.component';
+import { ErrorDisplay } from '@/components/error-display.component';
+import { FileBrowser } from '@/components/file-browser.component';
+import { Contributors } from '@/components/contributors.component';
 import { FileItem } from '@/types/files';
 import { Contributor } from '@/types/contributors';
-import { RepositoryPageContent } from '@/components/repository-page-content.component';
+import { Repository } from '@/types/repos';
+import { normalizeRepository } from '@/lib/normalize-repository';
+import { normalizeContributor } from '@/lib/normalize-contributor';
 
 // Mock data - replace with actual API calls
 const mockFiles: FileItem[] = [
@@ -88,51 +98,118 @@ const mockFiles: FileItem[] = [
     },
 ];
 
-const mockContributors: Contributor[] = [
-    {
-        id: '1',
-        name: 'Ayush Barman',
-        email: 'ayush@bitsync.dev',
-        role: 'owner',
-        joinedAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-        id: '2',
-        name: 'Sarah Johnson',
-        email: 'sarah@bitsync.dev',
-        role: 'admin',
-        joinedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-        id: '3',
-        name: 'Mike Chen',
-        email: 'mike@example.com',
-        role: 'editor',
-        joinedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-        id: '4',
-        name: 'Emma Davis',
-        email: 'emma@example.com',
-        role: 'editor',
-        joinedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-        id: '5',
-        name: 'Alex Rodriguez',
-        email: 'alex@example.com',
-        role: 'viewer',
-        joinedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        lastActive: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-];
-
 export default function RepositoryPage() {
+    const params = useParams<{ owner_name: string; repo_name: string }>();
+    const ownerName = params?.owner_name;
+    const repoName = params?.repo_name;
+
+    const [repository, setRepository] = useState<Repository | null>(null);
+    const [contributors, setContributors] = useState<Contributor[]>([]);
+    const [activeTab, setActiveTab] = useState<RepoTabId>('files');
+    const [error, setError] = useState<{ code: number; message: string } | null>(null);
+
+    useEffect(() => {
+        if (!ownerName || !repoName) return;
+
+        let cancelled = false;
+        const controller = new AbortController();
+
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/repo/${encodeURIComponent(
+                        ownerName,
+                    )}/${encodeURIComponent(repoName)}`,
+                    { credentials: 'include', signal: controller.signal },
+                );
+                const body = await res.json().catch(() => null);
+                if (cancelled) return;
+                if (!res.ok || !body?.data) {
+                    setError({
+                        code: res.status,
+                        message:
+                            body?.message ??
+                            (res.status === 404
+                                ? 'Repository not found'
+                                : 'Something went wrong while loading this repository'),
+                    });
+                    return;
+                }
+                setError(null);
+                setRepository(normalizeRepository(body.data));
+            } catch (e) {
+                if (cancelled || (e as Error).name === 'AbortError') return;
+                setError({
+                    code: 500,
+                    message: 'Something went wrong while loading this repository',
+                });
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [ownerName, repoName]);
+
+    const repoId = repository?.id;
+
+    useEffect(() => {
+        if (!repoId) return;
+
+        let cancelled = false;
+        const controller = new AbortController();
+
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/repo/${encodeURIComponent(
+                        repoId,
+                    )}/contributors`,
+                    { credentials: 'include', signal: controller.signal },
+                );
+                const body = await res.json().catch(() => null);
+                if (cancelled || !res.ok || !Array.isArray(body?.data)) return;
+                setContributors(body.data.map(normalizeContributor));
+            } catch (e) {
+                if (cancelled || (e as Error).name === 'AbortError') return;
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [repoId]);
+
+    if (error) {
+        return <ErrorDisplay code={error.code} message={error.message} />;
+    }
+
     return (
-        <RepositoryPageContent files={mockFiles} contributors={mockContributors} />
+        <div className="flex flex-col h-full bg-background">
+            <RepoTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+            <div className="flex-1 overflow-hidden">
+                {activeTab === 'files' && <FileBrowser files={mockFiles} />}
+                {activeTab === 'contributors' && (
+                    <Contributors
+                        contributors={contributors}
+                        repoId={repoId}
+                        onContributorsChange={setContributors}
+                    />
+                )}
+                {activeTab === 'workspaces' && (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                        Workspaces view coming soon
+                    </div>
+                )}
+                {activeTab === 'settings' && (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                        Settings view coming soon
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }

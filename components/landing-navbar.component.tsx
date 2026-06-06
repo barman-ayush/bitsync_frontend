@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
+import { NotificationsButton } from "./notifications.component";
 import { useUser } from "@/contexts/user.context";
 import { useRouter } from "next/navigation";
 
@@ -60,6 +61,7 @@ export default function LandingaNavbar() {
                             ) :
                             (
                                 <>
+                                    <NotificationsButton />
                                     <Button onClick={handleLogout} className="bg-primary hover:bg-primary/90">Logout</Button>
                                 </>
                             )

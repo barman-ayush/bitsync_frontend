@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, X, Search, Shield, Eye, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { ChevronDown, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,13 +15,12 @@ import {
 import { useUser } from '@/contexts/user.context';
 import { useToast } from '@/components/toast-provider';
 import { useRepoNameAvailability } from '@/hooks/use-repo-name-availability';
-import { useUserRepositorySearch, type UserSearchResult } from '@/hooks/use-user-search';
-
-type MemberRole = 'member' | 'admin';
-
-interface SelectedMember extends UserSearchResult {
-    role: MemberRole;
-}
+import type { UserSearchResult } from '@/hooks/use-user-search';
+import {
+    MemberSearchSelect,
+    type MemberRole,
+    type SelectedMember,
+} from '@/components/member-search-select.component';
 
 const NAME_SUGGESTIONS = ['animated-spoon', 'curly-broccoli', 'silver-meteor', 'velvet-falcon', 'glowing-pixel'];
 
@@ -32,9 +31,7 @@ export default function CreateRepositoryPage() {
 
     const [repoName, setRepoName] = useState('');
     const [description, setDescription] = useState('');
-    const [memberQuery, setMemberQuery] = useState('');
     const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const suggestion = useMemo(() => NAME_SUGGESTIONS[0], []);
@@ -45,16 +42,8 @@ export default function CreateRepositoryPage() {
     const showNameIndicator = repoName.trim().length > 0;
     const showNameMessage = showNameIndicator && nameStatus !== 'idle';
 
-    const { status: searchStatus, results: searchHits } = useUserRepositorySearch(memberQuery);
-    const searchResults = useMemo(
-        () => searchHits.filter((u) => !selectedMembers.some((s) => s.email === u.email)),
-        [searchHits, selectedMembers],
-    );
-
     const handleAddMember = (member: UserSearchResult) => {
         setSelectedMembers((prev) => [...prev, { ...member, role: 'member' }]);
-        setMemberQuery('');
-        setShowSuggestions(false);
     };
 
     const handleRemoveMember = (email: string) => {
@@ -306,141 +295,12 @@ export default function CreateRepositoryPage() {
                                     </p>
                                 </div>
 
-                                <div className="relative">
-                                    <div className="group flex items-center gap-2 h-10 rounded-md border border-border bg-background px-3 transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20">
-                                        <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search by username..."
-                                            value={memberQuery}
-                                            onChange={(e) => {
-                                                setMemberQuery(e.target.value);
-                                                setShowSuggestions(true);
-                                            }}
-                                            onFocus={() => setShowSuggestions(true)}
-                                            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                                            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none border-0"
-                                        />
-                                    </div>
-
-                                    {showSuggestions && memberQuery.trim() && (
-                                        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md overflow-hidden">
-                                            {searchStatus === 'searching' && (
-                                                <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    Searching…
-                                                </div>
-                                            )}
-                                            {searchStatus === 'success' && searchResults.length > 0 && (
-                                                searchResults.map((member) => (
-                                                    <button
-                                                        key={member.email}
-                                                        type="button"
-                                                        onMouseDown={(e) => e.preventDefault()}
-                                                        onClick={() => handleAddMember(member)}
-                                                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent transition-colors"
-                                                    >
-                                                        <Avatar className="h-7 w-7">
-                                                            <AvatarFallback className="text-[11px] bg-primary/20 text-primary">
-                                                                {member.displayName.charAt(0).toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="text-sm font-medium text-foreground truncate">
-                                                                {member.displayName}
-                                                            </div>
-                                                            <div className="text-xs text-muted-foreground truncate">
-                                                                {member.email}
-                                                            </div>
-                                                        </div>
-                                                    </button>
-                                                ))
-                                            )}
-                                            {searchStatus === 'success' && searchResults.length === 0 && (
-                                                <div className="px-3 py-2 text-xs text-muted-foreground">
-                                                    No users found.
-                                                </div>
-                                            )}
-                                            {searchStatus === 'error' && (
-                                                <div className="px-3 py-2 text-xs text-destructive">
-                                                    Could not search users. Try again.
-                                                </div>
-                                            )}
-                                            {searchStatus === 'idle' && (
-                                                <div className="px-3 py-2 text-xs text-muted-foreground">
-                                                    Username can only contain letters, numbers, and hyphens.
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {selectedMembers.length > 0 && (
-                                    <ul className="space-y-2">
-                                        {selectedMembers.map((member) => (
-                                            <li
-                                                key={member.email}
-                                                className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2"
-                                            >
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarFallback className="text-xs bg-primary/20 text-primary">
-                                                        {member.displayName.charAt(0).toUpperCase()}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-foreground truncate">
-                                                        {member.displayName}
-                                                    </div>
-                                                    <div className="text-xs text-muted-foreground truncate">
-                                                        {member.email}
-                                                    </div>
-                                                </div>
-
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <button
-                                                            type="button"
-                                                            className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-card/40 hover:bg-card/70 text-xs font-medium text-foreground transition-colors"
-                                                        >
-                                                            {member.role === 'admin' ? (
-                                                                <Shield className="h-3.5 w-3.5" />
-                                                            ) : (
-                                                                <Eye className="h-3.5 w-3.5" />
-                                                            )}
-                                                            <span className="capitalize">{member.role}</span>
-                                                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                                                        </button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="z-[9999] min-w-[10rem]">
-                                                        <DropdownMenuItem onSelect={() => handleChangeRole(member.email, 'member')}>
-                                                            <Eye className="h-4 w-4" />
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm">Member</span>
-                                                                <span className="text-xs text-muted-foreground">Read-only access</span>
-                                                            </div>
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem onSelect={() => handleChangeRole(member.email, 'admin')}>
-                                                            <Shield className="h-4 w-4" />
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm">Admin</span>
-                                                                <span className="text-xs text-muted-foreground">Full control</span>
-                                                            </div>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-
-                                                <button
-                                                    type="button"
-                                                    aria-label={`Remove ${member.displayName}`}
-                                                    onClick={() => handleRemoveMember(member.email)}
-                                                    className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                                <MemberSearchSelect
+                                    selectedMembers={selectedMembers}
+                                    onAdd={handleAddMember}
+                                    onRemove={handleRemoveMember}
+                                    onChangeRole={handleChangeRole}
+                                />
                             </div>
                         </div>
                     </section>
