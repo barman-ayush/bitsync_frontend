@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, notFound } from 'next/navigation';
 import { RepoTabs, type RepoTabId } from '@/components/repo-tabs.component';
 import { ErrorDisplay } from '@/components/error-display.component';
 import { FileBrowser } from '@/components/file-browser.component';
+import { EmptyRepoState } from '@/components/empty-repo-state.component';
 import { Contributors } from '@/components/contributors.component';
+import { WorkspaceView } from '@/components/workspace-view.component';
 import { FileItem } from '@/types/files';
 import { Contributor } from '@/types/contributors';
 import { Repository } from '@/types/repos';
@@ -124,14 +126,17 @@ export default function RepositoryPage() {
                 );
                 const body = await res.json().catch(() => null);
                 if (cancelled) return;
+                if (res.status === 404 || (res.ok && !body?.data)) {
+                    // Repository was deleted or never existed → render the 404 page.
+                    notFound();
+                    return;
+                }
                 if (!res.ok || !body?.data) {
                     setError({
                         code: res.status,
                         message:
                             body?.message ??
-                            (res.status === 404
-                                ? 'Repository not found'
-                                : 'Something went wrong while loading this repository'),
+                            'Something went wrong while loading this repository',
                     });
                     return;
                 }
@@ -191,7 +196,15 @@ export default function RepositoryPage() {
             <RepoTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
             <div className="flex-1 overflow-hidden">
-                {activeTab === 'files' && <FileBrowser files={mockFiles} />}
+                {activeTab === 'files' &&
+                    (repository && !repository.headCommit ? (
+                        <EmptyRepoState
+                            repoName={repository.name}
+                            onCreateWorkspace={() => setActiveTab('workspaces')}
+                        />
+                    ) : (
+                        <FileBrowser files={mockFiles} />
+                    ))}
                 {activeTab === 'contributors' && (
                     <Contributors
                         contributors={contributors}
@@ -199,11 +212,7 @@ export default function RepositoryPage() {
                         onContributorsChange={setContributors}
                     />
                 )}
-                {activeTab === 'workspaces' && (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                        Workspaces view coming soon
-                    </div>
-                )}
+                {activeTab === 'workspaces' && <WorkspaceView repoId={repoId} />}
                 {activeTab === 'settings' && (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
                         Settings view coming soon
