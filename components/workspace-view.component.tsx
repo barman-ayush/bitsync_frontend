@@ -7,8 +7,11 @@ import { WorkspaceChangesBar } from '@/components/workspace-changes-bar.componen
 import { WorkspaceUploadFab } from '@/components/workspace-upload-fab.component';
 import { CreateFolderDialog } from '@/components/create-folder-dialog.component';
 import { UploadConflictDialog } from '@/components/upload-conflict-dialog.component';
+import { CommitDialog } from '@/components/commit-dialog.component';
 import { ROOT_PATH, useWorkspaceTree } from '@/hooks/use-workspace-tree';
 import { usePendingChanges } from '@/hooks/use-pending-changes';
+import { useCommit } from '@/hooks/use-commit';
+import { useUncommittedStatus } from '@/hooks/use-uncommitted-status';
 import { useFileContent } from '@/hooks/use-file-content';
 import { mergePendingEntries } from '@/lib/merge-pending-entries';
 import type { Workspace } from '@/types/workspaces';
@@ -41,6 +44,7 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
     // Directory that uploads / new folders land in; root until the user picks one.
     const [activeFolderPath, setActiveFolderPath] = useState<string>(ROOT_PATH);
     const [createFolderOpen, setCreateFolderOpen] = useState(false);
+    const [commitOpen, setCommitOpen] = useState(false);
     // Same-name uploads awaiting a keep-old / keep-new decision.
     const [conflicts, setConflicts] = useState<{
         files: File[];
@@ -49,6 +53,8 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
 
     const tree = useWorkspaceTree(repoId, currentWorkspace?.id);
     const pending = usePendingChanges(repoId, currentWorkspace?.id);
+    const commit = useCommit(repoId, currentWorkspace?.id);
+    const uncommitted = useUncommittedStatus(repoId, currentWorkspace?.id);
     const content = useFileContent(
         repoId,
         currentWorkspace?.id,
@@ -152,6 +158,9 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
     const handleStage = async () => {
         const staged = await pending.stage();
         if (!staged) return;
+        // Staging turns the queue into uncommitted changes — re-check so the
+        // commit button enables.
+        uncommitted.refresh();
         // Reflect the staged changes in the tree on the FE without a round trip:
         // remove deletions, and drop adds/modifies into their directory.
         for (const change of staged) {
@@ -173,9 +182,33 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
         }
     };
 
+    const handleCommit = async (message: string) => {
+        const result = await commit.commit(message);
+        // A successful commit clears the workspace's uncommitted changes — re-check
+        // so the commit button disables again.
+        if (result) uncommitted.refresh();
+        return result;
+    };
+
     const targetLabel = activeFolderPath === ROOT_PATH ? 'root' : activeFolderPath;
     const folderNames = tree.getDir(activeFolderPath).entries.map((e) => e.name);
     const selectedPath = selection?.type === 'file' ? selection.file.path : undefined;
+
+    // The commit button is clickable only when there is something to commit and
+    // nothing left unstaged: disabled with no active workspace, while changes are
+    // still queued (unstaged), or when the workspace has no uncommitted changes.
+    const hasUnstagedChanges = pending.changes.length > 0;
+    const commitDisabled =
+        !currentWorkspace?.id ||
+        hasUnstagedChanges ||
+        !uncommitted.hasUncommittedChanges;
+    const commitDisabledReason = !currentWorkspace?.id
+        ? undefined
+        : hasUnstagedChanges
+          ? 'Stage your changes before committing.'
+          : !uncommitted.hasUncommittedChanges
+            ? 'No uncommitted changes to commit.'
+            : undefined;
 
     return (
         <div className="relative flex h-full bg-background">
@@ -190,6 +223,9 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
                 onSelectFile={openFile}
                 onSelectFolder={openDir}
                 onSelectWorkspace={setCurrentWorkspace}
+                onCommit={() => setCommitOpen(true)}
+                commitDisabled={commitDisabled}
+                commitDisabledReason={commitDisabledReason}
             />
 
             <div className="flex h-full min-w-0 flex-1 flex-col">
@@ -202,6 +238,8 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
                 />
                 <WorkspaceFileView
                     workspaceName={currentWorkspace?.name}
+                    repoId={repoId}
+                    workspaceId={currentWorkspace?.id}
                     selection={selection}
                     tree={tree}
                     pendingChanges={pending.changes}
@@ -243,6 +281,14 @@ export function WorkspaceView({ repoId }: WorkspaceViewProps) {
                 }
                 fileNames={conflicts ? conflicts.files.map((f) => f.name) : []}
                 onResolve={handleResolveConflicts}
+            />
+
+            <CommitDialog
+                open={commitOpen}
+                onOpenChange={setCommitOpen}
+                workspaceLabel={currentWorkspace?.name}
+                isCommitting={commit.isCommitting}
+                onCommit={handleCommit}
             />
         </div>
     );

@@ -5,6 +5,7 @@ import { Code, Eye, File, FileText, Folder, History, Pencil } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { WorkspaceFileMenu } from '@/components/workspace-file-menu.component';
+import { WorkspaceCommitHistory } from '@/components/workspace-commit-history.component';
 import { ROOT_PATH, type UseWorkspaceTreeResult } from '@/hooks/use-workspace-tree';
 import type { UseFileContentResult } from '@/hooks/use-file-content';
 import {
@@ -29,6 +30,9 @@ const tabs: { id: FileViewTab; label: string; icon: typeof Eye }[] = [
 
 interface WorkspaceFileViewProps {
     workspaceName?: string;
+    /** Repo / workspace the commit history belongs to. */
+    repoId?: string;
+    workspaceId?: string;
     /** What to render: a directory listing, an opened file, or nothing. */
     selection: WorkspaceSelection | null;
     /** Shared tree state, used to read the contents of the selected directory. */
@@ -89,6 +93,8 @@ function formatBytes(bytes: number): string {
  */
 export function WorkspaceFileView({
     workspaceName,
+    repoId,
+    workspaceId,
     selection,
     tree,
     pendingChanges,
@@ -98,6 +104,10 @@ export function WorkspaceFileView({
     onDeleteFile,
     onRenameFile,
 }: WorkspaceFileViewProps) {
+    // When true the history pane takes over the main area, replacing the
+    // breadcrumb bar with a title + back button.
+    const [showHistory, setShowHistory] = useState(false);
+
     if (!selection) {
         return (
             <div className="flex h-full flex-1 flex-col items-center justify-center bg-background text-center">
@@ -108,6 +118,22 @@ export function WorkspaceFileView({
                 <p className="mt-1 max-w-xs text-sm text-muted-foreground">
                     Pick a folder to browse it, or a file to view its contents.
                 </p>
+            </div>
+        );
+    }
+
+    if (showHistory) {
+        return (
+            <div className="flex h-full flex-1 flex-col bg-background">
+                <WorkspaceCommitHistory
+                    repoId={repoId}
+                    workspaceId={workspaceId}
+                    onBack={() => {
+                        setShowHistory(false);
+                        // Back always lands on the root folder listing.
+                        onOpenDir(ROOT_PATH);
+                    }}
+                />
             </div>
         );
     }
@@ -124,6 +150,7 @@ export function WorkspaceFileView({
                     onOpenFile={onOpenFile}
                     onDeleteFile={onDeleteFile}
                     onRenameFile={onRenameFile}
+                    onShowHistory={() => setShowHistory(true)}
                 />
             ) : (
                 <FileContentView
@@ -219,6 +246,7 @@ function DirView({
     onOpenFile,
     onDeleteFile,
     onRenameFile,
+    onShowHistory,
 }: {
     workspaceName?: string;
     path: string;
@@ -234,6 +262,8 @@ function DirView({
         size: number,
         committed: boolean,
     ) => void;
+    /** Open the commit history pane. */
+    onShowHistory: () => void;
 }) {
     const dir = tree.getDir(path);
 
@@ -245,12 +275,24 @@ function DirView({
     return (
         <>
             <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm">
-                <Breadcrumb
-                    workspaceName={workspaceName}
-                    path={path}
-                    leafIsFile={false}
-                    onOpenDir={onOpenDir}
-                />
+                <div className="flex items-center justify-between gap-4">
+                    <Breadcrumb
+                        workspaceName={workspaceName}
+                        path={path}
+                        leafIsFile={false}
+                        onOpenDir={onOpenDir}
+                    />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={onShowHistory}
+                        className="shrink-0 gap-1.5"
+                    >
+                        <History className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Commit history</span>
+                    </Button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4">

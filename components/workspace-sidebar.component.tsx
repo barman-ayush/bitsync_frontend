@@ -1,10 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { GitCommit, Search } from 'lucide-react';
 import { WorkspaceSwitcher } from '@/components/workspace-switcher.component';
 import { WorkspaceFileTree } from '@/components/workspace-file-tree.component';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { UseWorkspaceTreeResult } from '@/hooks/use-workspace-tree';
 import type { Workspace } from '@/types/workspaces';
 import type {
@@ -25,6 +31,15 @@ interface WorkspaceSidebarProps {
     onSelectFile: (file: SelectedWorkspaceFile) => void;
     onSelectFolder: (path: string, treeHash?: string | null) => void;
     onSelectWorkspace: (workspace: Workspace) => void;
+    /** Opens the commit dialog. */
+    onCommit: () => void;
+    /**
+     * Disabled when there's nothing to commit: no active workspace, unstaged
+     * changes still queued, or no uncommitted changes on the workspace.
+     */
+    commitDisabled?: boolean;
+    /** Explains why the commit button is disabled; shown as a hover tooltip. */
+    commitDisabledReason?: string;
 }
 
 /**
@@ -43,6 +58,9 @@ export function WorkspaceSidebar({
     onSelectFile,
     onSelectFolder,
     onSelectWorkspace,
+    onCommit,
+    commitDisabled,
+    commitDisabledReason,
 }: WorkspaceSidebarProps) {
     const [query, setQuery] = useState('');
 
@@ -86,6 +104,34 @@ export function WorkspaceSidebar({
                     onSelectFile={onSelectFile}
                     onSelectFolder={onSelectFolder}
                 />
+            </div>
+
+            {/* Commit action pinned to the bottom of the sidebar. */}
+            <div className="border-t border-border p-3">
+                <Tooltip>
+                    {/* A disabled button doesn't emit hover events, so the
+                        trigger wraps it in a span that does. */}
+                    <TooltipTrigger asChild>
+                        <span className="block">
+                            <Button
+                                type="button"
+                                onClick={onCommit}
+                                disabled={commitDisabled}
+                                // Keep the background solid on hover; the default
+                                // variant's `hover:bg-primary/90` darkens over the
+                                // dark sidebar until the dark primary-foreground
+                                // text disappears. Fade the whole button instead.
+                                className="w-full gap-1.5 hover:bg-primary hover:opacity-90"
+                            >
+                                <GitCommit className="h-4 w-4" />
+                                Commit
+                            </Button>
+                        </span>
+                    </TooltipTrigger>
+                    {commitDisabled && commitDisabledReason ? (
+                        <TooltipContent>{commitDisabledReason}</TooltipContent>
+                    ) : null}
+                </Tooltip>
             </div>
         </aside>
     );
