@@ -1,38 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export interface UseUncommittedStatusResult {
+export type WorkspaceSyncStatus = 'DIRTY' | 'CLEAN';
+
+export interface UseWorkspaceStatusResult {
     /** A status request is in flight. */
     isLoading: boolean;
-    /** The workspace has staged changes waiting to be committed. */
-    hasUncommittedChanges: boolean;
+    /** The sync status of the workspace. */
+    status: WorkspaceSyncStatus | null;
     /** Re-fetch the status after a stage or commit has changed it. */
     refresh: () => void;
 }
 
 /**
- * Tracks whether the active workspace has staged-but-uncommitted changes via
- * `GET /api/workspace/uncommitted/status/:repoId/:workspaceId`. The commit
- * button reads this to stay disabled when there is nothing to commit. The
- * status is re-fetched whenever the workspace changes; callers nudge it with
- * `refresh()` after staging (which creates uncommitted changes) or committing
- * (which clears them).
- *
- * The backend responds with `{ data: { hasChanges: boolean } }`. On any failure
- * the status falls back to "nothing to commit" so the commit button errs toward
- * disabled rather than firing a request with no changes.
+ * Tracks the sync status of the active workspace via
+ * `GET /api/workspace/status/:repoId/:workspaceId`.
+ * 
+ * The backend responds with `{ data: { status: 'DIRTY' | 'CLEAN' } }`.
  */
-export function useUncommittedStatus(
+export function useWorkspaceStatus(
     repoId: string | undefined,
     workspaceId: string | undefined,
-): UseUncommittedStatusResult {
+): UseWorkspaceStatusResult {
     const [isLoading, setIsLoading] = useState(false);
-    const [hasUncommittedChanges, setHasUncommittedChanges] = useState(false);
+    const [status, setStatus] = useState<WorkspaceSyncStatus | null>(null);
 
     const controllerRef = useRef<AbortController | null>(null);
 
     const fetchStatus = useCallback(async () => {
         if (!repoId || !workspaceId) {
-            setHasUncommittedChanges(false);
+            setStatus(null);
             return;
         }
 
@@ -43,7 +39,7 @@ export function useUncommittedStatus(
 
         try {
             const res = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/workspace/uncommitted/status/${encodeURIComponent(
+                `${process.env.NEXT_PUBLIC_API_URL}/api/workspace/status/${encodeURIComponent(
                     repoId,
                 )}/${encodeURIComponent(workspaceId)}`,
                 { credentials: 'include', signal: controller.signal },
@@ -52,17 +48,17 @@ export function useUncommittedStatus(
             if (controller.signal.aborted) return;
 
             if (!res.ok || !body?.data) {
-                setHasUncommittedChanges(false);
+                setStatus(null);
                 return;
             }
 
-            const data = body.data as { hasChanges?: boolean };
-            setHasUncommittedChanges(data.hasChanges === true);
+            const data = body.data as { status?: WorkspaceSyncStatus };
+            setStatus(data.status ?? null);
         } catch (e) {
             if (controller.signal.aborted || (e as Error).name === 'AbortError') {
                 return;
             }
-            setHasUncommittedChanges(false);
+            setStatus(null);
         } finally {
             if (!controller.signal.aborted) setIsLoading(false);
         }
@@ -78,5 +74,5 @@ export function useUncommittedStatus(
         fetchStatus();
     }, [fetchStatus]);
 
-    return { isLoading, hasUncommittedChanges, refresh };
+    return { isLoading, status, refresh };
 }

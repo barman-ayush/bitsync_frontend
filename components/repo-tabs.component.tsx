@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle, Code, Eye, GitBranch, GitFork, Star } from 'lucide-react';
+import { AlertCircle, CheckCircle, Code, Eye, GitBranch, GitFork, GitPullRequest, Star } from 'lucide-react';
 
-export type RepoTabId = 'files' | 'contributors' | 'workspaces' | 'settings';
+export type RepoTabId = 'files' | 'contributors' | 'workspaces' | 'pull-requests' | 'settings';
 
 interface RepoTabsProps {
   activeTab: RepoTabId;
@@ -13,6 +13,7 @@ interface RepoTabsProps {
 
 const tabs: { id: RepoTabId; icon: typeof Code; label: string }[] = [
   { id: 'files', icon: Code, label: 'Files' },
+  { id: 'pull-requests', icon: GitPullRequest, label: 'Pull Requests' },
   { id: 'contributors', icon: CheckCircle, label: 'Contributors' },
   { id: 'workspaces', icon: GitBranch, label: 'Workspaces' },
   { id: 'settings', icon: AlertCircle, label: 'Settings' },

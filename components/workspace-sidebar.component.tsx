@@ -117,10 +117,6 @@ export function WorkspaceSidebar({
                                 type="button"
                                 onClick={onCommit}
                                 disabled={commitDisabled}
-                                // Keep the background solid on hover; the default
-                                // variant's `hover:bg-primary/90` darkens over the
-                                // dark sidebar until the dark primary-foreground
-                                // text disappears. Fade the whole button instead.
                                 className="w-full gap-1.5 hover:bg-primary hover:opacity-90"
                             >
                                 <GitCommit className="h-4 w-4" />

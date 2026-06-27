@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Code, Eye, File, FileText, Folder, History, Pencil } from 'lucide-react';
+import { Code, Eye, File, FileText, Folder, GitPullRequest, History, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { WorkspaceFileMenu } from '@/components/workspace-file-menu.component';
 import { WorkspaceCommitHistory } from '@/components/workspace-commit-history.component';
+import { useCommitHistory } from '@/hooks/use-commit-history';
 import { ROOT_PATH, type UseWorkspaceTreeResult } from '@/hooks/use-workspace-tree';
 import type { UseFileContentResult } from '@/hooks/use-file-content';
+import type { PRStatus } from '@/hooks/use-pr-status';
 import {
     mergePendingEntries,
     type DisplayTreeEntry,
@@ -41,6 +43,8 @@ interface WorkspaceFileViewProps {
     pendingChanges: PendingChange[];
     /** Fetch state for the selected file's contents. */
     content: UseFileContentResult;
+    /** The PR sync status for the current workspace. */
+    prStatus?: PRStatus | null;
     /** Navigate into a folder (path has a trailing slash; `''` for root). */
     onOpenDir: (path: string, treeHash?: string | null) => void;
     /** Open a file. */
@@ -58,6 +62,8 @@ interface WorkspaceFileViewProps {
         size: number,
         committed: boolean,
     ) => void;
+    /** Open the create-PR flow. Only invoked when there is at least one commit. */
+    onCreatePR?: () => void;
 }
 
 /**
@@ -99,10 +105,12 @@ export function WorkspaceFileView({
     tree,
     pendingChanges,
     content,
+    prStatus,
     onOpenDir,
     onOpenFile,
     onDeleteFile,
     onRenameFile,
+    onCreatePR,
 }: WorkspaceFileViewProps) {
     // When true the history pane takes over the main area, replacing the
     // breadcrumb bar with a title + back button.
@@ -143,14 +151,18 @@ export function WorkspaceFileView({
             {selection.type === 'dir' ? (
                 <DirView
                     workspaceName={workspaceName}
+                    repoId={repoId}
+                    workspaceId={workspaceId}
                     path={selection.path}
                     tree={tree}
                     pendingChanges={pendingChanges}
+                    prStatus={prStatus}
                     onOpenDir={onOpenDir}
                     onOpenFile={onOpenFile}
                     onDeleteFile={onDeleteFile}
                     onRenameFile={onRenameFile}
                     onShowHistory={() => setShowHistory(true)}
+                    onCreatePR={onCreatePR}
                 />
             ) : (
                 <FileContentView
@@ -239,19 +251,26 @@ function Breadcrumb({
 
 function DirView({
     workspaceName,
+    repoId,
+    workspaceId,
     path,
     tree,
     pendingChanges,
+    prStatus,
     onOpenDir,
     onOpenFile,
     onDeleteFile,
     onRenameFile,
     onShowHistory,
+    onCreatePR,
 }: {
     workspaceName?: string;
+    repoId?: string;
+    workspaceId?: string;
     path: string;
     tree: UseWorkspaceTreeResult;
     pendingChanges: PendingChange[];
+    prStatus?: PRStatus | null;
     onOpenDir: (path: string, treeHash?: string | null) => void;
     onOpenFile: (file: SelectedWorkspaceFile) => void;
     onDeleteFile: (filePath: string, name: string, committed: boolean) => void;
@@ -264,8 +283,14 @@ function DirView({
     ) => void;
     /** Open the commit history pane. */
     onShowHistory: () => void;
+    /** Open the create-PR flow. Only invoked when there is at least one commit. */
+    onCreatePR?: () => void;
 }) {
     const dir = tree.getDir(path);
+
+    // A PR can only be opened once the workspace has at least one new commit.
+    const { commits } = useCommitHistory(repoId, workspaceId);
+    const canCreatePR = commits.length >= 1;
 
     // Committed entries with unstaged uploads overlaid (folders-first, sorted).
     const sorted = mergePendingEntries(dir.entries, pendingChanges, path);
@@ -282,16 +307,50 @@ function DirView({
                         leafIsFile={false}
                         onOpenDir={onOpenDir}
                     />
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={onShowHistory}
-                        className="shrink-0 gap-1.5"
-                    >
-                        <History className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Commit history</span>
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={onShowHistory}
+                            className="gap-1.5"
+                        >
+                            <History className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Commit history</span>
+                        </Button>
+
+                        {(prStatus === 'IN_SYNC' || prStatus === 'PENDING_SYNC') && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={prStatus === 'IN_SYNC'}
+                                title={prStatus === 'IN_SYNC' ? 'Workspace is up to date' : 'Sync workspace with upstream'}
+                                className="gap-1.5"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Sync</span>
+                            </Button>
+                        )}
+
+                        {prStatus === 'CREATE_PR' && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={onCreatePR}
+                                disabled={!canCreatePR}
+                                title={
+                                    canCreatePR
+                                        ? 'Open a pull request for these commits'
+                                        : 'Commit at least one change to open a pull request'
+                                }
+                                className="gap-1.5 bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                                <GitPullRequest className="h-4 w-4" />
+                                <span className="hidden sm:inline">Create PR</span>
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -368,12 +427,12 @@ function DirRow({
                     isFolder
                         ? onOpenDir(fullPath, entry.objectHash ?? undefined)
                         : onOpenFile({
-                              name: entry.name,
-                              path: fullPath,
-                              objectHash: entry.objectHash,
-                              size: entry.size,
-                              status: entry.status,
-                          })
+                            name: entry.name,
+                            path: fullPath,
+                            objectHash: entry.objectHash,
+                            size: entry.size,
+                            status: entry.status,
+                        })
                 }
                 className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left text-sm"
             >
@@ -400,8 +459,8 @@ function DirRow({
                     {isFolder
                         ? '—'
                         : typeof entry.size === 'number'
-                          ? formatBytes(entry.size)
-                          : '—'}
+                            ? formatBytes(entry.size)
+                            : '—'}
                 </span>
             </button>
             {!isFolder && (

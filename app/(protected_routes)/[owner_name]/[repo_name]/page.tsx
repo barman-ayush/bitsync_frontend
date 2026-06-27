@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
-import { RepoTabs, type RepoTabId } from '@/components/repo-tabs.component';
+import { RepoTabs } from '@/components/repo-tabs.component';
 import { ErrorDisplay } from '@/components/error-display.component';
 import { FileBrowser } from '@/components/file-browser.component';
 import { EmptyRepoState } from '@/components/empty-repo-state.component';
 import { Contributors } from '@/components/contributors.component';
 import { WorkspaceView } from '@/components/workspace-view.component';
+import { PullRequestsView } from '@/components/pull-requests-view.component';
+import { useRepoUrlState } from '@/hooks/use-repo-url-state';
 import { FileItem } from '@/types/files';
 import { Contributor } from '@/types/contributors';
 import { Repository } from '@/types/repos';
@@ -101,13 +103,26 @@ const mockFiles: FileItem[] = [
 ];
 
 export default function RepositoryPage() {
+    // `useSearchParams` (read inside RepositoryView) requires a Suspense
+    // boundary in the App Router, so the page shell provides one.
+    return (
+        <Suspense fallback={null}>
+            <RepositoryView />
+        </Suspense>
+    );
+}
+
+function RepositoryView() {
     const params = useParams<{ owner_name: string; repo_name: string }>();
     const ownerName = params?.owner_name;
     const repoName = params?.repo_name;
 
+    // Tab / workspace / path live in the URL so the view is shareable.
+    const { tab: activeTab, workspaceId, path, setTab, setWorkspaceId, setPath } =
+        useRepoUrlState();
+
     const [repository, setRepository] = useState<Repository | null>(null);
     const [contributors, setContributors] = useState<Contributor[]>([]);
-    const [activeTab, setActiveTab] = useState<RepoTabId>('files');
     const [error, setError] = useState<{ code: number; message: string } | null>(null);
 
     useEffect(() => {
@@ -193,14 +208,14 @@ export default function RepositoryPage() {
 
     return (
         <div className="flex flex-col h-full bg-background">
-            <RepoTabs activeTab={activeTab} onTabChange={setActiveTab} />
+            <RepoTabs activeTab={activeTab} onTabChange={setTab} />
 
             <div className="flex-1 overflow-hidden">
                 {activeTab === 'files' &&
                     (repository && !repository.headCommit ? (
                         <EmptyRepoState
                             repoName={repository.name}
-                            onCreateWorkspace={() => setActiveTab('workspaces')}
+                            onCreateWorkspace={() => setTab('workspaces')}
                         />
                     ) : (
                         <FileBrowser files={mockFiles} />
@@ -212,7 +227,18 @@ export default function RepositoryPage() {
                         onContributorsChange={setContributors}
                     />
                 )}
-                {activeTab === 'workspaces' && <WorkspaceView repoId={repoId} />}
+                {activeTab === 'workspaces' && (
+                    <WorkspaceView
+                        repoId={repoId}
+                        workspaceId={workspaceId}
+                        path={path}
+                        onWorkspaceChange={setWorkspaceId}
+                        onPathChange={setPath}
+                    />
+                )}
+                {activeTab === 'pull-requests' && (
+                    <PullRequestsView repoId={repoId} />
+                )}
                 {activeTab === 'settings' && (
                     <div className="flex items-center justify-center h-full text-muted-foreground">
                         Settings view coming soon

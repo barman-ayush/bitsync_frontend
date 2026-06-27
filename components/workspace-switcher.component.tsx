@@ -39,12 +39,12 @@ export function WorkspaceSwitcher({
     const current =
         workspaces.find((w) => w.id === currentWorkspaceId) ?? workspaces[0] ?? null;
 
-    // Once the list loads, if nothing is selected yet (or the selection is no
-    // longer present), surface the first workspace to the parent so the rest of
-    // the view has an active workspace to render against.
+    // Surface the resolved workspace to the parent whenever it changes. This
+    // covers a cold load where the URL's `currentWorkspaceId` already matches a
+    // workspace (the parent still needs the full object) as well as falling back
+    // to the first workspace when the URL names none / an unknown one.
     useEffect(() => {
-        if (!current) return;
-        if (current.id !== currentWorkspaceId) onSelect(current);
+        if (current) onSelect(current);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [current?.id]);
 
