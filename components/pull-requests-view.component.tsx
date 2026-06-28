@@ -9,12 +9,32 @@ import { PRDetailsView } from './pr-details-view.component';
 
 export interface PullRequestsViewProps {
     repoId?: string;
+    prId?: string;
+    onPrIdChange?: (prId: string | undefined) => void;
 }
 
-export function PullRequestsView({ repoId }: PullRequestsViewProps) {
+export function PullRequestsView({ repoId, prId, onPrIdChange }: PullRequestsViewProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
-    const [selectedPrId, setSelectedPrId] = useState<string | null>(null);
+    const [localPrId, setLocalPrId] = useState<string | null>(null);
+
+    const activePrId = prId ?? localPrId;
+
+    const handleSelectPr = (id: string) => {
+        if (onPrIdChange) {
+            onPrIdChange(id);
+        } else {
+            setLocalPrId(id);
+        }
+    };
+
+    const handleBack = () => {
+        if (onPrIdChange) {
+            onPrIdChange(undefined);
+        } else {
+            setLocalPrId(null);
+        }
+    };
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -31,8 +51,8 @@ export function PullRequestsView({ repoId }: PullRequestsViewProps) {
     const openCount = prs.filter((pr) => pr.status === 'OPEN').length;
     const closedCount = prs.length - openCount;
 
-    if (selectedPrId && repoId) {
-        return <PRDetailsView repoId={repoId} prId={selectedPrId} onBack={() => setSelectedPrId(null)} />;
+    if (activePrId && repoId) {
+        return <PRDetailsView repoId={repoId} prId={activePrId} onBack={handleBack} />;
     }
 
     return (
@@ -73,7 +93,7 @@ export function PullRequestsView({ repoId }: PullRequestsViewProps) {
                             </div>
                         ) : (
                             prs.map((pr) => (
-                                <div key={pr.id} className="flex gap-3 p-4 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedPrId(pr.id)}>
+                                <div key={pr.id} className="flex gap-3 p-4 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => handleSelectPr(pr.id)}>
                                     <div className="mt-0.5 shrink-0">
                                         {pr.status === 'OPEN' && <GitPullRequest className="h-5 w-5 text-green-500" />}
                                         {pr.status === 'MERGED' && <GitMerge className="h-5 w-5 text-purple-500" />}

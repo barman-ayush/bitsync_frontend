@@ -117,8 +117,8 @@ function RepositoryView() {
     const ownerName = params?.owner_name;
     const repoName = params?.repo_name;
 
-    // Tab / workspace / path live in the URL so the view is shareable.
-    const { tab: activeTab, workspaceId, path, setTab, setWorkspaceId, setPath } =
+    // Tab / workspace / path / prId live in the URL so the view is shareable.
+    const { tab: activeTab, workspaceId, path, prId, setTab, setWorkspaceId, setPath, setPrId } =
         useRepoUrlState();
 
     const [repository, setRepository] = useState<Repository | null>(null);
@@ -237,7 +237,7 @@ function RepositoryView() {
                     />
                 )}
                 {activeTab === 'pull-requests' && (
-                    <PullRequestsView repoId={repoId} />
+                    <PullRequestsView repoId={repoId} prId={prId} onPrIdChange={setPrId} />
                 )}
                 {activeTab === 'settings' && (
                     <div className="flex items-center justify-center h-full text-muted-foreground">

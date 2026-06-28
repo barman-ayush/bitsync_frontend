@@ -20,6 +20,7 @@ export interface RepoUrlState {
     tab: RepoTabId;
     workspaceId?: string;
     path?: string;
+    prId?: string;
     setTab: (tab: RepoTabId) => void;
     /**
      * Select a workspace. Clears `path` because the open file/folder belonged
@@ -27,6 +28,7 @@ export interface RepoUrlState {
      */
     setWorkspaceId: (workspaceId: string | undefined) => void;
     setPath: (path: string | undefined) => void;
+    setPrId: (prId: string | undefined) => void;
 }
 
 function isRepoTab(value: string | null): value is RepoTabId {
@@ -43,8 +45,10 @@ export function useRepoUrlState(): RepoUrlState {
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
+    const prId = searchParams.get('prId') ?? undefined;
     const tabParam = searchParams.get('tab');
-    const tab = isRepoTab(tabParam) ? tabParam : DEFAULT_TAB;
+    const defaultTab = prId ? 'pull-requests' : DEFAULT_TAB;
+    const tab = isRepoTab(tabParam) ? tabParam : defaultTab;
     const workspaceId = searchParams.get('workspaceId') ?? undefined;
     const path = searchParams.get('path') ?? undefined;
 
@@ -64,7 +68,10 @@ export function useRepoUrlState(): RepoUrlState {
         [router, pathname, searchParams],
     );
 
-    const setTab = useCallback((next: RepoTabId) => update({ tab: next }), [update]);
+    const setTab = useCallback(
+        (next: RepoTabId) => update({ tab: next, prId: next === 'pull-requests' ? searchParams.get('prId') ?? undefined : undefined }),
+        [update, searchParams]
+    );
 
     const setWorkspaceId = useCallback(
         (next: string | undefined) => update({ workspaceId: next, path: undefined }),
@@ -76,5 +83,10 @@ export function useRepoUrlState(): RepoUrlState {
         [update],
     );
 
-    return { tab, workspaceId, path, setTab, setWorkspaceId, setPath };
+    const setPrId = useCallback(
+        (next: string | undefined) => update({ tab: 'pull-requests', prId: next }),
+        [update],
+    );
+
+    return { tab, workspaceId, path, prId, setTab, setWorkspaceId, setPath, setPrId };
 }
