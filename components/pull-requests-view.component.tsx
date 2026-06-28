@@ -5,6 +5,7 @@ import { Search, GitPullRequest, GitMerge, GitPullRequestClosed, Loader2 } from 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { usePRList } from '@/hooks/use-pr-list';
+import { PRDetailsView } from './pr-details-view.component';
 
 export interface PullRequestsViewProps {
     repoId?: string;
@@ -13,6 +14,7 @@ export interface PullRequestsViewProps {
 export function PullRequestsView({ repoId }: PullRequestsViewProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [selectedPrId, setSelectedPrId] = useState<string | null>(null);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -28,6 +30,10 @@ export function PullRequestsView({ repoId }: PullRequestsViewProps) {
 
     const openCount = prs.filter((pr) => pr.status === 'OPEN').length;
     const closedCount = prs.length - openCount;
+
+    if (selectedPrId && repoId) {
+        return <PRDetailsView repoId={repoId} prId={selectedPrId} onBack={() => setSelectedPrId(null)} />;
+    }
 
     return (
         <div className="flex flex-col h-full bg-background p-4 sm:p-6 overflow-y-auto">
@@ -67,7 +73,7 @@ export function PullRequestsView({ repoId }: PullRequestsViewProps) {
                             </div>
                         ) : (
                             prs.map((pr) => (
-                                <div key={pr.id} className="flex gap-3 p-4 hover:bg-muted/30 transition-colors">
+                                <div key={pr.id} className="flex gap-3 p-4 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setSelectedPrId(pr.id)}>
                                     <div className="mt-0.5 shrink-0">
                                         {pr.status === 'OPEN' && <GitPullRequest className="h-5 w-5 text-green-500" />}
                                         {pr.status === 'MERGED' && <GitMerge className="h-5 w-5 text-purple-500" />}

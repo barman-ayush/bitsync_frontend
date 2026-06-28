@@ -22,13 +22,6 @@ import type {
 } from '@/types/workspace-tree';
 import { cn } from '@/lib/utils';
 
-type FileViewTab = 'preview' | 'code' | 'blame';
-
-const tabs: { id: FileViewTab; label: string; icon: typeof Eye }[] = [
-    { id: 'preview', label: 'Preview', icon: Eye },
-    { id: 'code', label: 'Code', icon: Code },
-    { id: 'blame', label: 'Blame', icon: History },
-];
 
 interface WorkspaceFileViewProps {
     workspaceName?: string;
@@ -518,8 +511,6 @@ function FileContentView({
         committed: boolean,
     ) => void;
 }) {
-    const [tab, setTab] = useState<FileViewTab>('code');
-
     // Names alongside this file, for rename conflict detection.
     const parentPath = parentOf(file.path);
     const siblingNames = mergePendingEntries(
@@ -532,7 +523,7 @@ function FileContentView({
     return (
         <>
             <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
-                <div className="flex items-center justify-between gap-4 px-4 pt-2.5">
+                <div className="flex items-center justify-between gap-4 px-4 py-2.5">
                     <Breadcrumb
                         workspaceName={workspaceName}
                         path={file.path}
@@ -565,50 +556,22 @@ function FileContentView({
                         />
                     </div>
                 </div>
-
-                <div className="flex items-center gap-5 px-4">
-                    {tabs.map(({ id, label, icon: Icon }) => {
-                        const isActive = tab === id;
-                        return (
-                            <button
-                                key={id}
-                                type="button"
-                                onClick={() => setTab(id)}
-                                className={cn(
-                                    'flex items-center gap-1.5 border-b-2 px-1 py-2.5 text-sm font-medium transition',
-                                    isActive
-                                        ? 'border-primary text-foreground'
-                                        : 'border-transparent text-muted-foreground hover:text-foreground',
-                                )}
-                            >
-                                <Icon className="h-4 w-4" />
-                                {label}
-                            </button>
-                        );
-                    })}
-                </div>
             </div>
 
             <div className="flex-1 overflow-auto">
-                {tab === 'blame' ? (
-                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                        Blame view is not available yet.
-                    </div>
-                ) : (
-                    <div className="p-6">
-                        <div className="rounded-lg border border-border bg-card">
-                            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 text-xs text-muted-foreground">
-                                <span className="truncate font-mono">{file.path}</span>
-                                <span className="shrink-0">
-                                    {typeof file.size === 'number'
-                                        ? formatBytes(file.size)
-                                        : '—'}
-                                </span>
-                            </div>
-                            <FileBody content={content} />
+                <div className="p-6">
+                    <div className="rounded-lg border border-border bg-card">
+                        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                            <span className="truncate font-mono">{file.path}</span>
+                            <span className="shrink-0">
+                                {typeof file.size === 'number'
+                                    ? formatBytes(file.size)
+                                    : '—'}
+                            </span>
                         </div>
+                        <FileBody content={content} />
                     </div>
-                )}
+                </div>
             </div>
         </>
     );
@@ -631,10 +594,23 @@ function FileBody({ content }: { content: UseFileContentResult }) {
         );
     }
 
+    if (!content.url) {
+        return (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+                No content available for this file.
+            </div>
+        );
+    }
+
     return (
-        <pre className="overflow-auto p-4 text-sm leading-relaxed text-foreground">
-            <code className="font-mono">{content.content ?? ''}</code>
-        </pre>
+        <div className="relative w-full h-[600px] bg-background">
+            <iframe
+                src={content.url}
+                className="w-full h-full border-0"
+                title="File Content"
+                sandbox="allow-same-origin allow-scripts"
+            />
+        </div>
     );
 }
 

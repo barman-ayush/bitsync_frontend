@@ -5,8 +5,8 @@ export type FileContentStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export interface UseFileContentResult {
     status: FileContentStatus;
-    /** The fetched file contents as text, or `null` until loaded. */
-    content: string | null;
+    /** The fetched file contents URL. */
+    url: string | null;
     error: string | null;
 }
 
@@ -26,7 +26,7 @@ export function useFileContent(
     file: SelectedWorkspaceFile | null,
 ): UseFileContentResult {
     const [status, setStatus] = useState<FileContentStatus>('idle');
-    const [content, setContent] = useState<string | null>(null);
+    const [url, setUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const objectHash = file?.objectHash ?? null;
@@ -35,21 +35,21 @@ export function useFileContent(
     useEffect(() => {
         if (!repoId || !workspaceId || !file) {
             setStatus('idle');
-            setContent(null);
+            setUrl(null);
             setError(null);
             return;
         }
 
         if (!objectHash) {
             setStatus('error');
-            setContent(null);
+            setUrl(null);
             setError('This file has no content to load yet.');
             return;
         }
 
         const controller = new AbortController();
         setStatus('loading');
-        setContent(null);
+        setUrl(null);
         setError(null);
 
         (async () => {
@@ -70,13 +70,16 @@ export function useFileContent(
                     return;
                 }
 
-                const contentType = res.headers.get('content-type') ?? '';
-                const text = contentType.includes('application/json')
-                    ? ((await res.json())?.data?.content ?? '')
-                    : await res.text();
-                if (controller.signal.aborted) return;
-
-                setContent(typeof text === 'string' ? text : String(text));
+                const body = await res.json();
+                const blobUrl = body?.data?.url;
+                
+                if (!blobUrl) {
+                    setError('Received invalid response from server (missing URL).');
+                    setStatus('error');
+                    return;
+                }
+                
+                setUrl(blobUrl);
                 setStatus('success');
             } catch (e) {
                 if (controller.signal.aborted || (e as Error).name === 'AbortError') {
@@ -91,5 +94,5 @@ export function useFileContent(
         // Re-fetch on a genuinely different file; path disambiguates same-hash blobs.
     }, [repoId, workspaceId, file, objectHash, filePath]);
 
-    return { status, content, error };
+    return { status, url, error };
 }
