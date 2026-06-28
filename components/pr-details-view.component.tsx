@@ -2,10 +2,19 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, GitCommit, FileText, User, Calendar, GitPullRequest, MessageSquare, Loader2, Trash2 } from 'lucide-react';
+import { ChevronLeft, GitCommit, FileText, User, Calendar, GitPullRequest, MessageSquare, Loader2, Trash2, AlertCircle } from 'lucide-react';
 import { usePRDetails, PRComment } from '@/hooks/use-pr-details';
 import { usePRCommits } from '@/hooks/use-pr-commits';
-import { usePRDiffs } from '@/hooks/use-pr-diffs';
+import { useMergeCheck } from '@/hooks/use-merge-check';
+import { useBlobContent } from '@/hooks/use-blob-content';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 
 interface PRDetailsViewProps {
     repoId: string;
@@ -36,7 +45,7 @@ const MOCK_PR_DETAILS = {
 export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const { pr: fetchedPr, isLoading, error } = usePRDetails(repoId, prId);
     const mockData = MOCK_PR_DETAILS;
-    
+
     const diffRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
     const [selectedViewModes, setSelectedViewModes] = useState<{ [key: string]: 'old' | 'new' }>({});
     const [generalDraft, setGeneralDraft] = useState('');
@@ -44,6 +53,9 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const [commentsList, setCommentsList] = useState<PRComment[]>([]);
     const [isPostingComment, setIsPostingComment] = useState(false);
     const [isDeletingComment, setIsDeletingComment] = useState<{ [key: string]: boolean }>({});
+    const [isClosingPR, setIsClosingPR] = useState(false);
+    const [showCloseModal, setShowCloseModal] = useState(false);
+    const [closeModalError, setCloseModalError] = useState<string | null>(null);
 
     useEffect(() => {
         if (fetchedPr?.comments) {
@@ -97,6 +109,28 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
         }
     };
 
+    const handleConfirmClosePR = async () => {
+        setIsClosingPR(true);
+        setCloseModalError(null);
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/close/${encodeURIComponent(repoId)}/${encodeURIComponent(prId)}`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            const json = await res.json().catch(() => null);
+            if (res.ok) {
+                setShowCloseModal(false);
+                window.location.reload();
+            } else {
+                setCloseModalError(json?.message ?? 'Failed to close pull request.');
+            }
+        } catch (err: any) {
+            setCloseModalError(err.message ?? 'Network error');
+        } finally {
+            setIsClosingPR(false);
+        }
+    };
+
     const scrollToDiff = (diffId: string) => {
         const el = diffRefs.current[diffId];
         if (el) {
@@ -109,7 +143,48 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     };
 
     const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, fetchedPr?.workspaceId);
-    const { diffs, isLoading: isLoadingDiffs, error: diffsError } = usePRDiffs(repoId, prId);
+    const { data: mergeCheckData, isLoading: isLoadingMergeCheck, error: mergeCheckError } = useMergeCheck(repoId, fetchedPr?.workspaceId!);
+
+    const diffs: {
+        path: string;
+        isConflict: boolean;
+        conflictType?: string;
+        changeType: string;
+        oldBlobHash?: string | null;
+        newBlobHash?: string | null;
+        baseBlob?: string | null;
+        oursBlob?: string | null;
+        theirsBlob?: string | null;
+    }[] = [];
+
+    if (mergeCheckData) {
+        if (mergeCheckData.conflicts) {
+            mergeCheckData.conflicts.forEach(c => {
+                diffs.push({
+                    path: c.filePath,
+                    isConflict: true,
+                    conflictType: c.conflictType,
+                    changeType: 'CONFLICT',
+                    baseBlob: c.baseBlob,
+                    oursBlob: c.oursBlob,
+                    theirsBlob: c.theirsBlob,
+                });
+            });
+        }
+        if (mergeCheckData.mergedPaths) {
+            Object.entries(mergeCheckData.mergedPaths).forEach(([p, entry]) => {
+                if (!diffs.some(d => d.path === p)) {
+                    diffs.push({
+                        path: p,
+                        isConflict: false,
+                        changeType: entry.oldBlobHash === null ? 'ADD' : 'MODIFY',
+                        oldBlobHash: entry.oldBlobHash,
+                        newBlobHash: entry.newBlobHash,
+                    });
+                }
+            });
+        }
+    }
 
     if (isLoading) {
         return (
@@ -142,7 +217,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                     <p className="text-xs text-muted-foreground">{diffs.length} files modified</p>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2">
-                    {isLoadingDiffs ? (
+                    {isLoadingMergeCheck ? (
                         <div className="py-4 text-center text-xs text-muted-foreground flex justify-center items-center">
                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading files...
                         </div>
@@ -157,13 +232,13 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 <FileText className="inline-block h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground group-hover:text-foreground" />
                                 <span className="truncate">{diff.path}</span>
                             </span>
-                            <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ml-2 shrink-0 ${
-                                diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
-                                diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
-                                diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
-                                'bg-blue-500/10 text-blue-500'
-                            }`}>
-                                {diff.changeType}
+                            <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ml-2 shrink-0 ${diff.isConflict ? 'bg-red-500/10 text-red-500' :
+                                    diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
+                                        diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
+                                            diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
+                                                'bg-blue-500/10 text-blue-500'
+                                }`}>
+                                {diff.isConflict ? 'CONFLICT' : diff.changeType}
                             </span>
                         </button>
                     ))}
@@ -173,7 +248,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 scroll-smooth">
                 <div className="max-w-4xl w-full mx-auto space-y-10 pb-20">
-                    
+
                     {/* Section 1: PR Metadata */}
                     <section className="space-y-4">
                         <div className="flex items-start justify-between gap-4">
@@ -183,7 +258,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 </div>
                                 <div>
                                     <h1 className="text-2xl font-bold text-foreground">
-                                        {pr.title} <span className="text-muted-foreground font-normal">#{prId.slice(0,6)}</span>
+                                        {pr.title} <span className="text-muted-foreground font-normal">#{prId.slice(0, 6)}</span>
                                     </h1>
                                     <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-muted-foreground">
                                         <span className="flex items-center gap-1">
@@ -196,12 +271,28 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
-                                <Button className="bg-green-600 hover:bg-green-700 text-white">
-                                    Merge PR
+                                {pr.status === 'OPEN' && (
+                                    <Button 
+                                        variant="outline"
+                                        onClick={() => {
+                                            setCloseModalError(null);
+                                            setShowCloseModal(true);
+                                        }}
+                                        disabled={isClosingPR}
+                                        className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-2"
+                                    >
+                                        Close PR
+                                    </Button>
+                                )}
+                                <Button 
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    disabled={pr.status !== 'OPEN'}
+                                >
+                                    {pr.status === 'CLOSED' ? 'PR Closed' : pr.status === 'MERGED' ? 'PR Merged' : 'Merge PR'}
                                 </Button>
                             </div>
                         </div>
-                        
+
                         <div className="bg-muted/30 border rounded-lg p-4 mt-4">
                             <h3 className="text-sm font-semibold mb-2">Description</h3>
                             <p className="text-sm text-foreground/80 whitespace-pre-wrap">{pr.description}</p>
@@ -253,27 +344,27 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                         <div className="flex items-center justify-between border-b pb-2 mb-4">
                             <h2 className="text-lg font-semibold">Comments ({commentsList.length})</h2>
                             {!showGeneralCommentInput && (
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => setShowGeneralCommentInput(true)}
                                 >
                                     <MessageSquare className="w-4 h-4 mr-2" /> Add comment
                                 </Button>
                             )}
                         </div>
-                        
+
                         <div className="space-y-4">
                             {commentsList.length === 0 && !showGeneralCommentInput && (
                                 <p className="text-sm text-muted-foreground italic">No comments added yet.</p>
                             )}
-                            
+
                             {commentsList.map((comment) => (
                                 <div key={comment.id} className="bg-card border rounded-lg p-4 text-sm text-foreground flex flex-col gap-2 group">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                                            <User className="h-4 w-4" /> 
-                                            <span className="font-semibold text-foreground">{comment.author?.displayName || comment.author?.username || comment.authorId}</span> 
+                                            <User className="h-4 w-4" />
+                                            <span className="font-semibold text-foreground">{comment.author?.displayName || comment.author?.username || comment.authorId}</span>
                                             <span>&bull;</span>
                                             <span>{new Date(comment.createdAt).toLocaleString()}</span>
                                         </div>
@@ -298,8 +389,8 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
 
                             {showGeneralCommentInput && (
                                 <div className="flex flex-col gap-2 bg-card border rounded-lg p-4">
-                                    <textarea 
-                                        className="w-full min-h-[90px] p-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                                    <textarea
+                                        className="w-full min-h-[90px] p-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                                         placeholder="Write a comment on this pull request..."
                                         value={generalDraft}
                                         onChange={(e) => setGeneralDraft(e.target.value)}
@@ -307,9 +398,9 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                         autoFocus
                                     />
                                     <div className="flex justify-end gap-2">
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
                                             onClick={() => {
                                                 setShowGeneralCommentInput(false);
                                                 setGeneralDraft('');
@@ -318,8 +409,8 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                         >
                                             Cancel
                                         </Button>
-                                        <Button 
-                                            size="sm" 
+                                        <Button
+                                            size="sm"
                                             onClick={handleAddComment}
                                             disabled={isPostingComment || !generalDraft.trim()}
                                         >
@@ -338,18 +429,18 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                         </div>
                     </section>
 
-                    {/* Section 3: Diff Files */}
+                    {/* Section 3: Changed Files */}
                     <section>
                         <h2 className="text-lg font-semibold mb-4 border-b pb-2">Changed Files</h2>
                         <div className="space-y-6">
-                            {isLoadingDiffs ? (
+                            {isLoadingMergeCheck ? (
                                 <div className="py-8 text-center text-sm text-muted-foreground flex justify-center items-center">
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Loading file diffs...
+                                    Loading file changes...
                                 </div>
-                            ) : diffsError ? (
+                            ) : mergeCheckError ? (
                                 <div className="py-8 text-center text-sm text-destructive">
-                                    {diffsError}
+                                    {mergeCheckError}
                                 </div>
                             ) : diffs.length === 0 ? (
                                 <div className="py-8 text-center text-sm text-muted-foreground">
@@ -359,8 +450,8 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 diffs.map((diff) => {
                                     const mode = selectedViewModes[diff.path] || 'new';
                                     return (
-                                        <div 
-                                            key={diff.path} 
+                                        <div
+                                            key={diff.path}
                                             id={diff.path}
                                             ref={(el) => {
                                                 if (el) diffRefs.current[diff.path] = el;
@@ -369,19 +460,14 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                         >
                                             <div className="flex items-center justify-between bg-muted/40 px-4 py-2 border-b">
                                                 <div className="font-mono text-sm font-medium flex items-center gap-2">
-                                                    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-                                                        diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
-                                                        diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
-                                                        diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
-                                                        'bg-blue-500/10 text-blue-500'
-                                                    }`}>
-                                                        {diff.changeType}
+                                                    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${diff.isConflict ? 'bg-red-500/10 text-red-500' :
+                                                            diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
+                                                                diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
+                                                                    'bg-blue-500/10 text-blue-500'
+                                                        }`}>
+                                                        {diff.isConflict ? 'CONFLICT' : diff.changeType}
                                                     </span>
-                                                    {diff.changeType === 'RENAME' ? (
-                                                        <span>{diff.oldPath} &rarr; {diff.path}</span>
-                                                    ) : (
-                                                        <span>{diff.path}</span>
-                                                    )}
+                                                    <span>{diff.path}</span>
                                                 </div>
                                                 <div className="flex bg-muted rounded-md p-0.5">
                                                     <button
@@ -399,11 +485,25 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                                 </div>
                                             </div>
                                             <div className="p-4 bg-background">
-                                                <div className="flex items-center justify-center py-12 border-2 border-dashed border-muted rounded-md bg-muted/10">
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {mode === 'old' ? 'Old file content mockup' : 'Updated file content mockup'}
-                                                    </p>
-                                                </div>
+                                                {diff.isConflict ? (
+                                                    <div className="space-y-3">
+                                                        <div className="text-xs font-mono text-muted-foreground bg-destructive/10 border border-destructive/20 p-2 rounded-md flex items-center justify-between">
+                                                            <span className="font-semibold text-destructive">Conflict Type: {diff.conflictType}</span>
+                                                            <span>Base: {diff.baseBlob?.slice(0, 8) ?? 'none'} | Ours: {diff.oursBlob?.slice(0, 8) ?? 'none'} | Theirs: {diff.theirsBlob?.slice(0, 8) ?? 'none'}</span>
+                                                        </div>
+                                                        <PRFileContentViewer
+                                                            repoId={repoId}
+                                                            blobHash={mode === 'old' ? diff.oursBlob : diff.theirsBlob}
+                                                            label={mode === 'old' ? 'Ours (Repo HEAD)' : 'Theirs (Workspace HEAD)'}
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <PRFileContentViewer
+                                                        repoId={repoId}
+                                                        blobHash={mode === 'old' ? diff.oldBlobHash : diff.newBlobHash}
+                                                        label={mode === 'old' ? 'Old File' : 'Updated File'}
+                                                    />
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -414,6 +514,84 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
 
                 </div>
             </div>
+
+            {/* Close PR Confirmation Modal */}
+            <Dialog open={showCloseModal} onOpenChange={setShowCloseModal}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                            <AlertCircle className="h-5 w-5" /> Close Pull Request
+                        </DialogTitle>
+                        <DialogDescription className="pt-2 text-foreground/80">
+                            Are you sure you want to close this pull request? Once closed, further code updates or merges cannot be applied directly.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {closeModalError && (
+                        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+                            {closeModalError}
+                        </div>
+                    )}
+
+                    <DialogFooter className="pt-4 gap-2 sm:gap-0">
+                        <Button 
+                            variant="ghost" 
+                            onClick={() => setShowCloseModal(false)}
+                            disabled={isClosingPR}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            variant="destructive"
+                            onClick={handleConfirmClosePR}
+                            disabled={isClosingPR}
+                            className="gap-2"
+                        >
+                            {isClosingPR && <Loader2 className="h-4 w-4 animate-spin" />}
+                            Yes, Close Pull Request
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+function PRFileContentViewer({ repoId, blobHash, label }: { repoId: string; blobHash: string | null | undefined; label: string }) {
+    const { url, isLoading, error } = useBlobContent(repoId, blobHash);
+
+    if (!blobHash) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 border border-dashed rounded-md bg-muted/10 text-muted-foreground text-sm">
+                <span>{label}: No content available for this state.</span>
+            </div>
+        );
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center gap-2 py-12 border rounded-md bg-muted/10 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading content from Cloudinary…
+            </div>
+        );
+    }
+
+    if (error || !url) {
+        return (
+            <div className="py-12 text-center text-sm text-destructive border rounded-md bg-destructive/5">
+                {error ?? 'Failed to load Cloudinary content for this blob'}
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative w-full h-[400px] border rounded-md overflow-hidden bg-background">
+            <iframe
+                src={url}
+                className="w-full h-full border-0"
+                title={label}
+                sandbox="allow-same-origin allow-scripts"
+            />
         </div>
     );
 }

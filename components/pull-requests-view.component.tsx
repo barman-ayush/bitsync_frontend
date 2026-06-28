@@ -6,14 +6,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { usePRList } from '@/hooks/use-pr-list';
 import { PRDetailsView } from './pr-details-view.component';
+import { DraftPrView } from './draft-pr-view.component';
 
 export interface PullRequestsViewProps {
     repoId?: string;
+    workspaceId?: string;
     prId?: string;
     onPrIdChange?: (prId: string | undefined) => void;
 }
 
-export function PullRequestsView({ repoId, prId, onPrIdChange }: PullRequestsViewProps) {
+export function PullRequestsView({ repoId, workspaceId, prId, onPrIdChange }: PullRequestsViewProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [localPrId, setLocalPrId] = useState<string | null>(null);
@@ -52,6 +54,16 @@ export function PullRequestsView({ repoId, prId, onPrIdChange }: PullRequestsVie
     const closedCount = prs.length - openCount;
 
     if (activePrId && repoId) {
+        if (activePrId === 'draft') {
+            return (
+                <DraftPrView 
+                    repoId={repoId} 
+                    workspaceId={workspaceId} 
+                    onBack={handleBack} 
+                    onPRCreated={(newPrId) => handleSelectPr(newPrId)} 
+                />
+            );
+        }
         return <PRDetailsView repoId={repoId} prId={activePrId} onBack={handleBack} />;
     }
 

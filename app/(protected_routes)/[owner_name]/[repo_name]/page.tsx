@@ -234,10 +234,11 @@ function RepositoryView() {
                         path={path}
                         onWorkspaceChange={setWorkspaceId}
                         onPathChange={setPath}
+                        onCreatePR={() => setPrId('draft')}
                     />
                 )}
                 {activeTab === 'pull-requests' && (
-                    <PullRequestsView repoId={repoId} prId={prId} onPrIdChange={setPrId} />
+                    <PullRequestsView repoId={repoId} workspaceId={workspaceId} prId={prId} onPrIdChange={setPrId} />
                 )}
                 {activeTab === 'settings' && (
                     <div className="flex items-center justify-center h-full text-muted-foreground">

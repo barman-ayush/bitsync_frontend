@@ -37,6 +37,8 @@ interface WorkspaceViewProps {
     onWorkspaceChange: (workspaceId: string) => void;
     /** Writes the open file/folder path back to the URL. */
     onPathChange: (path: string | undefined) => void;
+    /** Triggers navigation or action when Create PR is clicked. */
+    onCreatePR?: () => void;
 }
 
 /** The parent directory (trailing slash, or `''` for root) of a full path. */
@@ -76,6 +78,7 @@ export function WorkspaceView({
     path,
     onWorkspaceChange,
     onPathChange,
+    onCreatePR,
 }: WorkspaceViewProps) {
     const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
     const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
@@ -391,7 +394,7 @@ export function WorkspaceView({
                     onOpenFile={openFile}
                     onDeleteFile={handleDeleteFile}
                     onRenameFile={handleRenameFile}
-                    onCreatePR={() => setCreatePrOpen(true)}
+                    onCreatePR={() => (onCreatePR ? onCreatePR() : setCreatePrOpen(true))}
                 />
             </div>
 
