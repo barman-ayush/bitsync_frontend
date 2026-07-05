@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, Copy, Check, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface SafeFileContentRendererProps {
     url: string;
@@ -10,6 +11,9 @@ interface SafeFileContentRendererProps {
 
 export function SafeFileContentRenderer({ url, filePath }: SafeFileContentRendererProps) {
     const [content, setContent] = useState<string | null>(null);
+    const [xlsxData, setXlsxData] = useState<{ [sheetName: string]: any[][] } | null>(null);
+    const [sheets, setSheets] = useState<string[]>([]);
+    const [activeSheet, setActiveSheet] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
@@ -19,10 +23,12 @@ export function SafeFileContentRenderer({ url, filePath }: SafeFileContentRender
 
     const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(extension);
     const isPdf = extension === 'pdf';
+    const isXlsx = extension === 'xlsx';
     const isBinary = ['zip', 'tar', 'gz', 'rar', '7z', 'exe', 'dmg', 'iso', 'bin'].includes(extension);
 
+    // Effect for regular text files
     useEffect(() => {
-        if (isImage || isPdf || isBinary || !url) {
+        if (isImage || isPdf || isBinary || isXlsx || !url) {
             setContent(null);
             setError(null);
             return;
@@ -59,7 +65,59 @@ export function SafeFileContentRenderer({ url, filePath }: SafeFileContentRender
             isMounted = false;
             controller.abort();
         };
-    }, [url, isImage, isPdf, isBinary]);
+    }, [url, isImage, isPdf, isBinary, isXlsx]);
+
+    // Effect for XLSX spreadsheets
+    useEffect(() => {
+        if (!isXlsx || !url) {
+            setXlsxData(null);
+            setSheets([]);
+            setActiveSheet('');
+            return;
+        }
+
+        let isMounted = true;
+        const controller = new AbortController();
+
+        async function fetchXlsx() {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const res = await fetch(url, { signal: controller.signal });
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                const buffer = await res.arrayBuffer();
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                
+                const dataMap: { [sheetName: string]: any[][] } = {};
+                workbook.SheetNames.forEach(name => {
+                    const sheet = workbook.Sheets[name];
+                    dataMap[name] = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
+                });
+
+                if (isMounted) {
+                    setSheets(workbook.SheetNames);
+                    setXlsxData(dataMap);
+                    setActiveSheet(workbook.SheetNames[0] || '');
+                }
+            } catch (err: any) {
+                if (err.name === 'AbortError') return;
+                if (isMounted) {
+                    setError(err.message || 'Failed to parse Excel file');
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        }
+
+        fetchXlsx();
+
+        return () => {
+            isMounted = false;
+            controller.abort();
+        };
+    }, [url, isXlsx]);
 
     const handleCopy = async () => {
         if (!content) return;
@@ -121,6 +179,93 @@ export function SafeFileContentRenderer({ url, filePath }: SafeFileContentRender
                     title={fileName}
                     sandbox="allow-same-origin allow-scripts"
                 />
+            </div>
+        );
+    }
+
+    if (isXlsx) {
+        if (!activeSheet || !xlsxData || !xlsxData[activeSheet]) {
+            return (
+                <div className="flex flex-col items-center justify-center py-12 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-900/20 text-zinc-500 text-sm">
+                    <span>No data available in this spreadsheet.</span>
+                </div>
+            );
+        }
+
+        const rows = xlsxData[activeSheet];
+        const maxCols = Math.max(...rows.map(row => row.length), 0);
+
+        const getColLabel = (index: number): string => {
+            let label = '';
+            let temp = index;
+            while (temp >= 0) {
+                label = String.fromCharCode((temp % 26) + 65) + label;
+                temp = Math.floor(temp / 26) - 1;
+            }
+            return label;
+        };
+
+        return (
+            <div className="flex flex-col rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden shadow-md">
+                {/* Excel Table Title Bar */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 dark:border-zinc-805 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-650 dark:text-zinc-400 font-semibold">
+                    <span className="truncate">{fileName}</span>
+                    <span className="text-[10px] uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-450 px-2 py-0.5 rounded font-mono">
+                        Spreadsheet Preview
+                    </span>
+                </div>
+
+                {/* Spreadsheet Grid Container */}
+                <div className="flex-1 overflow-auto max-h-[500px]">
+                    <table className="w-full border-collapse border-spacing-0 select-text">
+                        <thead className="sticky top-0 z-20 bg-zinc-50 dark:bg-zinc-900 shadow-[0_1px_0_0_rgba(228,228,231,1)] dark:shadow-[0_1px_0_0_rgba(39,39,42,1)]">
+                            <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                                <th className="w-12 text-center text-[10px] font-semibold text-zinc-400 bg-zinc-100 dark:bg-zinc-900/80 border-r border-b border-zinc-200 dark:border-zinc-800 p-1 sticky left-0 z-30 select-none"></th>
+                                {Array.from({ length: maxCols }).map((_, colIndex) => (
+                                    <th key={colIndex} className="px-3 py-1 text-center text-xs font-semibold text-zinc-550 dark:text-zinc-400 border-r border-b border-zinc-200 dark:border-zinc-800 font-mono min-w-[100px] select-none">
+                                        {getColLabel(colIndex)}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
+                            {rows.map((row, rowIndex) => (
+                                <tr key={rowIndex} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/30">
+                                    <td className="w-12 text-center text-[10px] text-zinc-400 dark:text-zinc-500 bg-zinc-50 dark:bg-zinc-900/50 border-r border-zinc-200 dark:border-zinc-800 font-mono select-none sticky left-0 z-10">
+                                        {rowIndex + 1}
+                                    </td>
+                                    {Array.from({ length: maxCols }).map((_, colIndex) => {
+                                        const cellValue = row[colIndex];
+                                        return (
+                                            <td key={colIndex} className="px-3 py-1.5 border-r border-zinc-200 dark:border-zinc-800/80 text-xs text-zinc-800 dark:text-zinc-300 font-normal truncate max-w-[200px]" title={cellValue !== undefined && cellValue !== null ? String(cellValue) : ''}>
+                                                {cellValue !== undefined && cellValue !== null ? String(cellValue) : ''}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Sheets Tab Selection Bar */}
+                {sheets.length > 0 && (
+                    <div className="flex border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-2 gap-2 overflow-x-auto select-none">
+                        {sheets.map(name => (
+                            <button
+                                key={name}
+                                onClick={() => setActiveSheet(name)}
+                                className={`px-3 py-1 text-xs font-medium rounded border transition-all cursor-pointer ${
+                                    activeSheet === name
+                                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm font-semibold'
+                                        : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                                }`}
+                            >
+                                {name}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
         );
     }
