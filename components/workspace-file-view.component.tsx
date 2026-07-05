@@ -5,6 +5,7 @@ import { Code, Eye, File, FileText, Folder, GitPullRequest, History, Pencil, Ref
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { WorkspaceFileMenu } from '@/components/workspace-file-menu.component';
+import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
 import { WorkspaceCommitHistory } from '@/components/workspace-commit-history.component';
 import { useCommitHistory } from '@/hooks/use-commit-history';
 import { ROOT_PATH, type UseWorkspaceTreeResult } from '@/hooks/use-workspace-tree';
@@ -569,7 +570,7 @@ function FileContentView({
                                     : '—'}
                             </span>
                         </div>
-                        <FileBody content={content} />
+                        <FileBody content={content} filePath={file.path} />
                     </div>
                 </div>
             </div>
@@ -577,7 +578,7 @@ function FileContentView({
     );
 }
 
-function FileBody({ content }: { content: UseFileContentResult }) {
+function FileBody({ content, filePath }: { content: UseFileContentResult; filePath: string }) {
     if (content.status === 'loading') {
         return (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
@@ -603,14 +604,7 @@ function FileBody({ content }: { content: UseFileContentResult }) {
     }
 
     return (
-        <div className="relative w-full h-[600px] bg-background">
-            <iframe
-                src={content.url}
-                className="w-full h-full border-0"
-                title="File Content"
-                sandbox="allow-same-origin allow-scripts"
-            />
-        </div>
+        <SafeFileContentRenderer url={content.url} filePath={filePath} />
     );
 }
 

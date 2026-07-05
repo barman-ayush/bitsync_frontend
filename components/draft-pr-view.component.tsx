@@ -8,6 +8,8 @@ import { ChevronLeft, GitCommit, FileText, GitPullRequest, Loader2, AlertTriangl
 import { usePRCommits } from '@/hooks/use-pr-commits';
 import { useMergeCheck } from '@/hooks/use-merge-check';
 import { useBlobContent } from '@/hooks/use-blob-content';
+import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
+
 
 interface DraftPrViewProps {
     repoId: string;
@@ -343,6 +345,7 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                                             repoId={repoId} 
                                                             blobHash={mode === 'old' ? diff.oursBlob : diff.theirsBlob} 
                                                             label={mode === 'old' ? 'Ours (Repo HEAD)' : 'Theirs (Workspace HEAD)'} 
+                                                            filePath={diff.path}
                                                         />
                                                     </div>
                                                 ) : (
@@ -350,6 +353,7 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                                         repoId={repoId} 
                                                         blobHash={mode === 'old' ? diff.oldBlobHash : diff.newBlobHash} 
                                                         label={mode === 'old' ? 'Old File (Repo HEAD)' : 'Updated File (Auto-merged)'} 
+                                                        filePath={diff.path}
                                                     />
                                                 )}
                                             </div>
@@ -366,7 +370,7 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
     );
 }
 
-function DraftFileContentViewer({ repoId, blobHash, label }: { repoId: string; blobHash: string | null | undefined; label: string }) {
+function DraftFileContentViewer({ repoId, blobHash, label, filePath }: { repoId: string; blobHash: string | null | undefined; label: string; filePath: string }) {
     const { url, isLoading, error } = useBlobContent(repoId, blobHash);
 
     if (!blobHash) {
@@ -394,13 +398,6 @@ function DraftFileContentViewer({ repoId, blobHash, label }: { repoId: string; b
     }
 
     return (
-        <div className="relative w-full h-[400px] border rounded-md overflow-hidden bg-background">
-            <iframe
-                src={url}
-                className="w-full h-full border-0"
-                title={label}
-                sandbox="allow-same-origin allow-scripts"
-            />
-        </div>
+        <SafeFileContentRenderer url={url} filePath={filePath} />
     );
 }

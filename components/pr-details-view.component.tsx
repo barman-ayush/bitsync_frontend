@@ -7,6 +7,8 @@ import { usePRDetails, PRComment } from '@/hooks/use-pr-details';
 import { usePRCommits } from '@/hooks/use-pr-commits';
 import { useMergeCheck } from '@/hooks/use-merge-check';
 import { useBlobContent } from '@/hooks/use-blob-content';
+import { useToast } from '@/components/toast-provider';
+import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
 import {
     Dialog,
     DialogContent,
@@ -45,6 +47,7 @@ const MOCK_PR_DETAILS = {
 export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const { pr: fetchedPr, isLoading, error } = usePRDetails(repoId, prId);
     const mockData = MOCK_PR_DETAILS;
+    const { addToast } = useToast();
 
     const diffRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
     const [selectedViewModes, setSelectedViewModes] = useState<{ [key: string]: 'old' | 'new' }>({});
@@ -54,6 +57,8 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const [isPostingComment, setIsPostingComment] = useState(false);
     const [isDeletingComment, setIsDeletingComment] = useState<{ [key: string]: boolean }>({});
     const [isClosingPR, setIsClosingPR] = useState(false);
+    const [isMerging, setIsMerging] = useState(false);
+    const [resolutions, setResolutions] = useState<{ [filePath: string]: { resolution: 'TAKE_OURS' | 'TAKE_THEIRS' | 'MANUAL', resolvedBlob: string | null } }>({});
     const [showCloseModal, setShowCloseModal] = useState(false);
     const [closeModalError, setCloseModalError] = useState<string | null>(null);
 
@@ -79,10 +84,10 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                 setGeneralDraft('');
                 setShowGeneralCommentInput(false);
             } else {
-                alert(json?.message ?? 'Failed to add comment');
+                addToast(json?.message ?? 'Failed to add comment', 'error');
             }
         } catch (err: any) {
-            alert(err.message ?? 'Network error');
+            addToast(err.message ?? 'Network error', 'error');
         } finally {
             setIsPostingComment(false);
         }
@@ -100,10 +105,10 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
             if (res.ok) {
                 setCommentsList(prev => prev.filter(c => c.id !== commentId));
             } else {
-                alert(json?.message ?? 'Failed to delete comment');
+                addToast(json?.message ?? 'Failed to delete comment', 'error');
             }
         } catch (err: any) {
-            alert(err.message ?? 'Network error');
+            addToast(err.message ?? 'Network error', 'error');
         } finally {
             setIsDeletingComment(prev => ({ ...prev, [commentId]: false }));
         }
@@ -128,6 +133,66 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
             setCloseModalError(err.message ?? 'Network error');
         } finally {
             setIsClosingPR(false);
+        }
+    };
+
+    const handleMerge = async () => {
+        setIsMerging(true);
+        try {
+            const res1 = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/merge/${encodeURIComponent(repoId)}/${encodeURIComponent(prId)}`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const data1 = await res1.json().catch(() => ({}));
+
+            if (res1.ok) {
+                window.location.reload();
+                return;
+            }
+
+            if (res1.status === 409 && data1.data?.mergeStateId) {
+                const mergeStateId = data1.data.mergeStateId;
+                const dbConflicts = data1.data.conflicts;
+
+                const mappedResolutions = dbConflicts.map((c: any) => {
+                    const choice = resolutions[c.filePath];
+                    return {
+                        conflictId: c.id,
+                        resolution: choice.resolution,
+                        resolvedBlob: choice.resolvedBlob
+                    };
+                });
+
+                const res2 = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/merge-state/${encodeURIComponent(mergeStateId)}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resolutions: mappedResolutions }),
+                    credentials: 'include'
+                });
+
+                if (!res2.ok) {
+                    addToast((await res2.json().catch(() => ({}))).message || 'Failed to save conflict resolutions', 'error');
+                    return;
+                }
+
+                const res3 = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/merge-state/${encodeURIComponent(mergeStateId)}/finalize`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (!res3.ok) {
+                    addToast((await res3.json().catch(() => ({}))).message || 'Failed to finalize merge', 'error');
+                    return;
+                }
+
+                window.location.reload();
+            } else {
+                addToast(data1.message || 'Merge failed', 'error');
+            }
+        } catch (err: any) {
+            addToast(err.message || 'Network error during merge', 'error');
+        } finally {
+            setIsMerging(false);
         }
     };
 
@@ -233,10 +298,10 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 <span className="truncate">{diff.path}</span>
                             </span>
                             <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ml-2 shrink-0 ${diff.isConflict ? 'bg-red-500/10 text-red-500' :
-                                    diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
-                                        diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
-                                            diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
-                                                'bg-blue-500/10 text-blue-500'
+                                diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
+                                    diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
+                                        diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
+                                            'bg-blue-500/10 text-blue-500'
                                 }`}>
                                 {diff.isConflict ? 'CONFLICT' : diff.changeType}
                             </span>
@@ -272,7 +337,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                                 {pr.status === 'OPEN' && (
-                                    <Button 
+                                    <Button
                                         variant="outline"
                                         onClick={() => {
                                             setCloseModalError(null);
@@ -284,10 +349,12 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                         Close PR
                                     </Button>
                                 )}
-                                <Button 
+                                <Button
                                     className="bg-green-600 hover:bg-green-700 text-white"
-                                    disabled={pr.status !== 'OPEN'}
+                                    disabled={pr.status !== 'OPEN' || isMerging || (diffs.filter(d => d.isConflict).length > 0 && Object.keys(resolutions).length < diffs.filter(d => d.isConflict).length)}
+                                    onClick={handleMerge}
                                 >
+                                    {isMerging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                                     {pr.status === 'CLOSED' ? 'PR Closed' : pr.status === 'MERGED' ? 'PR Merged' : 'Merge PR'}
                                 </Button>
                             </div>
@@ -461,9 +528,9 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                             <div className="flex items-center justify-between bg-muted/40 px-4 py-2 border-b">
                                                 <div className="font-mono text-sm font-medium flex items-center gap-2">
                                                     <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${diff.isConflict ? 'bg-red-500/10 text-red-500' :
-                                                            diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
-                                                                diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
-                                                                    'bg-blue-500/10 text-blue-500'
+                                                        diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
+                                                            diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
+                                                                'bg-blue-500/10 text-blue-500'
                                                         }`}>
                                                         {diff.isConflict ? 'CONFLICT' : diff.changeType}
                                                     </span>
@@ -491,10 +558,27 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                                             <span className="font-semibold text-destructive">Conflict Type: {diff.conflictType}</span>
                                                             <span>Base: {diff.baseBlob?.slice(0, 8) ?? 'none'} | Ours: {diff.oursBlob?.slice(0, 8) ?? 'none'} | Theirs: {diff.theirsBlob?.slice(0, 8) ?? 'none'}</span>
                                                         </div>
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant={resolutions[diff.path]?.resolution === 'TAKE_OURS' ? 'default' : 'outline'}
+                                                                onClick={() => setResolutions(prev => ({ ...prev, [diff.path]: { resolution: 'TAKE_OURS', resolvedBlob: diff.oursBlob ?? null } }))}
+                                                            >
+                                                                Take Ours (Repo HEAD)
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant={resolutions[diff.path]?.resolution === 'TAKE_THEIRS' ? 'default' : 'outline'}
+                                                                onClick={() => setResolutions(prev => ({ ...prev, [diff.path]: { resolution: 'TAKE_THEIRS', resolvedBlob: diff.theirsBlob ?? null } }))}
+                                                            >
+                                                                Take Theirs (Workspace HEAD)
+                                                            </Button>
+                                                        </div>
                                                         <PRFileContentViewer
                                                             repoId={repoId}
                                                             blobHash={mode === 'old' ? diff.oursBlob : diff.theirsBlob}
                                                             label={mode === 'old' ? 'Ours (Repo HEAD)' : 'Theirs (Workspace HEAD)'}
+                                                            filePath={diff.path}
                                                         />
                                                     </div>
                                                 ) : (
@@ -502,6 +586,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                                         repoId={repoId}
                                                         blobHash={mode === 'old' ? diff.oldBlobHash : diff.newBlobHash}
                                                         label={mode === 'old' ? 'Old File' : 'Updated File'}
+                                                        filePath={diff.path}
                                                     />
                                                 )}
                                             </div>
@@ -534,14 +619,14 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                     )}
 
                     <DialogFooter className="pt-4 gap-2 sm:gap-0">
-                        <Button 
-                            variant="ghost" 
+                        <Button
+                            variant="ghost"
                             onClick={() => setShowCloseModal(false)}
                             disabled={isClosingPR}
                         >
                             Cancel
                         </Button>
-                        <Button 
+                        <Button
                             variant="destructive"
                             onClick={handleConfirmClosePR}
                             disabled={isClosingPR}
@@ -557,7 +642,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     );
 }
 
-function PRFileContentViewer({ repoId, blobHash, label }: { repoId: string; blobHash: string | null | undefined; label: string }) {
+function PRFileContentViewer({ repoId, blobHash, label, filePath }: { repoId: string; blobHash: string | null | undefined; label: string; filePath: string }) {
     const { url, isLoading, error } = useBlobContent(repoId, blobHash);
 
     if (!blobHash) {
@@ -585,13 +670,6 @@ function PRFileContentViewer({ repoId, blobHash, label }: { repoId: string; blob
     }
 
     return (
-        <div className="relative w-full h-[400px] border rounded-md overflow-hidden bg-background">
-            <iframe
-                src={url}
-                className="w-full h-full border-0"
-                title={label}
-                sandbox="allow-same-origin allow-scripts"
-            />
-        </div>
+        <SafeFileContentRenderer url={url} filePath={filePath} />
     );
 }
