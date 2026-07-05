@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useParams, notFound } from 'next/navigation';
 import { RepoTabs } from '@/components/repo-tabs.component';
 import { ErrorDisplay } from '@/components/error-display.component';
-import { FileBrowser } from '@/components/file-browser.component';
+import { FileBrowser, PathSegment } from '@/components/file-browser.component';
 import { EmptyRepoState } from '@/components/empty-repo-state.component';
 import { Contributors } from '@/components/contributors.component';
 import { WorkspaceView } from '@/components/workspace-view.component';
@@ -15,92 +15,6 @@ import { Contributor } from '@/types/contributors';
 import { Repository } from '@/types/repos';
 import { normalizeRepository } from '@/lib/normalize-repository';
 import { normalizeContributor } from '@/lib/normalize-contributor';
-
-// Mock data - replace with actual API calls
-const mockFiles: FileItem[] = [
-    {
-        id: '1',
-        name: 'src',
-        type: 'folder',
-        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        description: 'Source code files',
-        versions: 12,
-    },
-    {
-        id: '2',
-        name: 'public',
-        type: 'folder',
-        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        description: 'Static assets',
-        versions: 4,
-    },
-    {
-        id: '3',
-        name: 'package.json',
-        type: 'file',
-        size: 2048,
-        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        description: 'Project dependencies',
-        versions: 8,
-    },
-    {
-        id: '4',
-        name: '.gitignore',
-        type: 'file',
-        size: 512,
-        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        versions: 3,
-    },
-    {
-        id: '5',
-        name: 'README.md',
-        type: 'file',
-        size: 5120,
-        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        description: 'Project documentation',
-        versions: 15,
-    },
-    {
-        id: '6',
-        name: 'next.config.js',
-        type: 'file',
-        size: 1024,
-        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        versions: 5,
-    },
-    {
-        id: '7',
-        name: 'tailwind.config.ts',
-        type: 'file',
-        size: 1536,
-        createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        versions: 4,
-    },
-    {
-        id: '8',
-        name: 'tsconfig.json',
-        type: 'file',
-        size: 768,
-        createdAt: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
-        modifiedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-        owner: 'barman-ayush',
-        versions: 2,
-    },
-];
 
 export default function RepositoryPage() {
     // `useSearchParams` (read inside RepositoryView) requires a Suspense
@@ -124,6 +38,13 @@ function RepositoryView() {
     const [repository, setRepository] = useState<Repository | null>(null);
     const [contributors, setContributors] = useState<Contributor[]>([]);
     const [error, setError] = useState<{ code: number; message: string } | null>(null);
+
+    // States for real-time files tab fetching and navigation
+    const [files, setFiles] = useState<FileItem[]>([]);
+    const [filesLoading, setFilesLoading] = useState(false);
+    const [filesError, setFilesError] = useState<string | null>(null);
+    const [currentTreeHash, setCurrentTreeHash] = useState<string | undefined>(undefined);
+    const [pathStack, setPathStack] = useState<PathSegment[]>([]);
 
     useEffect(() => {
         if (!ownerName || !repoName) return;
@@ -174,6 +95,75 @@ function RepositoryView() {
 
     const repoId = repository?.id;
 
+    // Reset tree hash navigation when changing repository
+    useEffect(() => {
+        setCurrentTreeHash(undefined);
+        setPathStack([]);
+    }, [repoId]);
+
+    // Fetch repository files real-time
+    useEffect(() => {
+        if (!repoId || activeTab !== 'files') return;
+
+        let cancelled = false;
+        const controller = new AbortController();
+
+        (async () => {
+            try {
+                setFilesLoading(true);
+                setFilesError(null);
+
+                const url = new URL(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/repo/get-data/${encodeURIComponent(repoId)}`
+                );
+                if (currentTreeHash) {
+                    url.searchParams.set('treeHash', currentTreeHash);
+                }
+
+                const res = await fetch(url.toString(), {
+                    credentials: 'include',
+                    signal: controller.signal,
+                });
+                const body = await res.json().catch(() => null);
+
+                if (cancelled) return;
+
+                if (!res.ok || body?.status !== 'success' || !body?.data?.tree) {
+                    setFilesError(
+                        body?.message ?? 'Something went wrong while loading repository files.'
+                    );
+                    setFiles([]);
+                    return;
+                }
+
+                const fetchedFiles: FileItem[] = body.data.tree.map((item: any) => ({
+                    id: item.objectHash,
+                    name: item.name,
+                    type: item.type === 'tree' ? 'folder' : 'file',
+                    size: item.size,
+                    createdAt: repository?.createdAt ?? new Date().toISOString(),
+                    modifiedAt: repository?.updatedAt ?? new Date().toISOString(),
+                    owner: repository?.owner.username ?? '',
+                }));
+
+                setFiles(fetchedFiles);
+            } catch (e) {
+                if (cancelled || (e as Error).name === 'AbortError') return;
+                setFilesError('Something went wrong while loading repository files.');
+                setFiles([]);
+            } finally {
+                if (!cancelled) {
+                    setFilesLoading(false);
+                }
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [repoId, activeTab, currentTreeHash, repository]);
+
     useEffect(() => {
         if (!repoId) return;
 
@@ -218,7 +208,27 @@ function RepositoryView() {
                             onCreateWorkspace={() => setTab('workspaces')}
                         />
                     ) : (
-                        <FileBrowser files={mockFiles} />
+                        <FileBrowser
+                            files={files}
+                            isLoading={filesLoading}
+                            error={filesError}
+                            repoName={repository?.name ?? ''}
+                            pathStack={pathStack}
+                            onFolderClick={(file) => {
+                                setPathStack((prev) => [...prev, { name: file.name, treeHash: file.id }]);
+                                setCurrentTreeHash(file.id);
+                            }}
+                            onBreadcrumbClick={(index) => {
+                                if (index === -1) {
+                                    setPathStack([]);
+                                    setCurrentTreeHash(undefined);
+                                } else {
+                                    const newStack = pathStack.slice(0, index + 1);
+                                    setPathStack(newStack);
+                                    setCurrentTreeHash(newStack[newStack.length - 1].treeHash);
+                                }
+                            }}
+                        />
                     ))}
                 {activeTab === 'contributors' && (
                     <Contributors
