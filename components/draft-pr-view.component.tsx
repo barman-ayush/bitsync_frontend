@@ -4,11 +4,13 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ChevronLeft, GitCommit, FileText, GitPullRequest, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, GitCommit, FileText, GitPullRequest, Loader2, AlertTriangle, CheckCircle2, Users, Search, X } from 'lucide-react';
 import { usePRCommits } from '@/hooks/use-pr-commits';
 import { usePrCommitChanges } from '@/hooks/use-pr-diffs';
 import { useBlobContent } from '@/hooks/use-blob-content';
 import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useRepoReviewerSearch, type ReviewerSearchResult } from '@/hooks/use-repo-reviewer-search';
 
 
 interface DraftPrViewProps {
@@ -24,6 +26,29 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedViewModes, setSelectedViewModes] = useState<{ [key: string]: 'old' | 'new' }>({});
     const diffRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+    const [selectedReviewers, setSelectedReviewers] = useState<ReviewerSearchResult[]>([]);
+    const [reviewerQuery, setReviewerQuery] = useState('');
+    const [showReviewerSuggestions, setShowReviewerSuggestions] = useState(false);
+
+    const { status: reviewerSearchStatus, results: reviewerSearchResults } = useRepoReviewerSearch(
+        repoId,
+        reviewerQuery
+    );
+
+    const filteredReviewerResults = reviewerSearchResults.filter(
+        (reviewer) => !selectedReviewers.some((r) => r.email === reviewer.email)
+    );
+
+    const handleAddReviewer = (reviewer: ReviewerSearchResult) => {
+        setSelectedReviewers((prev) => [...prev, reviewer]);
+        setReviewerQuery('');
+        setShowReviewerSuggestions(false);
+    };
+
+    const handleRemoveReviewer = (email: string) => {
+        setSelectedReviewers((prev) => prev.filter((r) => r.email !== email));
+    };
 
     const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, workspaceId);
     const { diffs: prDiffs, isLoading: isLoadingDiffs, error: diffsError } = usePrCommitChanges(repoId, workspaceId);
@@ -76,7 +101,11 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: title.trim(), description: description.trim() }),
+                    body: JSON.stringify({
+                        title: title.trim(),
+                        description: description.trim(),
+                        reviewers: selectedReviewers.map((r) => r.email),
+                    }),
                     credentials: 'include',
                 }
             );
@@ -130,9 +159,11 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                 </div>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 scroll-smooth">
-                <div className="max-w-4xl w-full mx-auto space-y-10 pb-20">
+            {/* Main Content Area Container */}
+            <div className="flex-1 flex h-full overflow-hidden">
+                {/* Left/Middle Column: Form & Diffs */}
+                <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 scroll-smooth no-scrollbar">
+                    <div className="max-w-4xl w-full mx-auto space-y-10 pb-20">
 
                     {/* Top Header & Action */}
                     <div className="flex items-center justify-between gap-4 border-b pb-4">
@@ -320,8 +351,132 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
 
                 </div>
             </div>
+
+            {/* Rightmost Column (Thinner) for Reviewers */}
+            <div className="w-80 border-l bg-card/40 flex flex-col h-full shrink-0 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="font-semibold text-sm text-foreground flex items-center gap-2 mb-1">
+                            <Users className="h-4 w-4 text-blue-500" />
+                            Reviewers
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                            Assign users in this repository to review your pull request.
+                        </p>
+                    </div>
+
+                    {/* Reviewers search input */}
+                    <div className="relative">
+                        <div className="group flex items-center gap-2 h-10 rounded-md border border-border bg-background px-3 transition-colors focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20">
+                            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <input
+                                type="text"
+                                placeholder="Search by name..."
+                                value={reviewerQuery}
+                                onChange={(e) => {
+                                    setReviewerQuery(e.target.value);
+                                    setShowReviewerSuggestions(true);
+                                }}
+                                onFocus={() => setShowReviewerSuggestions(true)}
+                                onBlur={() => setTimeout(() => setShowReviewerSuggestions(false), 200)}
+                                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none border-0"
+                            />
+                        </div>
+
+                        {showReviewerSuggestions && (
+                            <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md overflow-hidden max-h-60 overflow-y-auto">
+                                {reviewerSearchStatus === 'searching' && (
+                                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        Searching…
+                                    </div>
+                                )}
+                                {reviewerSearchStatus === 'success' && filteredReviewerResults.length > 0 && (
+                                    filteredReviewerResults.map((reviewer) => (
+                                        <button
+                                            key={reviewer.email}
+                                            type="button"
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={() => handleAddReviewer(reviewer)}
+                                            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent transition-colors"
+                                        >
+                                            <Avatar className="h-7 w-7">
+                                                <AvatarFallback className="text-[11px] bg-primary/20 text-primary font-semibold">
+                                                    {reviewer.displayName.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-foreground truncate">
+                                                    {reviewer.displayName}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground truncate">
+                                                    {reviewer.email}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
+                                {reviewerSearchStatus === 'success' && filteredReviewerResults.length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                                        No users found.
+                                    </div>
+                                )}
+                                {reviewerSearchStatus === 'error' && (
+                                    <div className="px-3 py-2 text-xs text-destructive">
+                                        Could not search users.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Selected Reviewers */}
+                    <div className="space-y-3">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                            Selected Reviewers ({selectedReviewers.length})
+                        </span>
+                        {selectedReviewers.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic bg-muted/20 border border-dashed rounded-md p-3 text-center">
+                                No reviewers selected yet.
+                            </p>
+                        ) : (
+                            <ul className="space-y-2">
+                                {selectedReviewers.map((reviewer) => (
+                                    <li
+                                        key={reviewer.email}
+                                        className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2"
+                                    >
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarFallback className="text-xs bg-primary/20 text-primary font-semibold">
+                                                {reviewer.displayName.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-medium text-foreground truncate">
+                                                {reviewer.displayName}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground truncate">
+                                                {reviewer.email}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            aria-label={`Remove ${reviewer.displayName}`}
+                                            onClick={() => handleRemoveReviewer(reviewer.email)}
+                                            className="rounded-sm p-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
-    );
+    </div>
+);
 }
 
 function DraftFileContentViewer({ repoId, blobHash, label, filePath }: { repoId: string; blobHash: string | null | undefined; label: string; filePath: string }) {
