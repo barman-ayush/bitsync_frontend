@@ -10,7 +10,7 @@ export interface DiffEntry {
     size?: number;
 }
 
-export function usePRDiffs(repoId: string | undefined, prId: string | undefined) {
+export function usePrCommitChanges(repoId: string | undefined, prId: string | undefined) {
     const [diffs, setDiffs] = useState<DiffEntry[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function usePRDiffs(repoId: string | undefined, prId: string | undefined)
             setError(null);
             try {
                 const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/pr/diff/${encodeURIComponent(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/pr/commit-changes/${encodeURIComponent(
                         repoId!
                     )}/${encodeURIComponent(prId!)}`,
                     { credentials: 'include', signal: controller.signal }

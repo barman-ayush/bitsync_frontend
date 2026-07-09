@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, GitCommit, FileText, GitPullRequest, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { usePRCommits } from '@/hooks/use-pr-commits';
-import { useMergeCheck } from '@/hooks/use-merge-check';
+import { usePrCommitChanges } from '@/hooks/use-pr-diffs';
 import { useBlobContent } from '@/hooks/use-blob-content';
 import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
 
@@ -26,50 +26,27 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
     const diffRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
     const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, workspaceId);
-    const { data: mergeCheckData, isLoading: isLoadingMergeCheck, error: mergeCheckError } = useMergeCheck(repoId, workspaceId);
+    const { diffs: prDiffs, isLoading: isLoadingDiffs, error: diffsError } = usePrCommitChanges(repoId, workspaceId);
 
-    const diffs: { 
-        path: string; 
-        isConflict: boolean; 
-        conflictType?: string; 
+    const diffs: {
+        path: string;
+        isConflict: boolean;
+        conflictType?: string;
         changeType: string;
-        oldBlobHash?: string | null; 
+        oldBlobHash?: string | null;
         newBlobHash?: string | null;
         baseBlob?: string | null;
         oursBlob?: string | null;
         theirsBlob?: string | null;
-    }[] = [];
+    }[] = prDiffs.map((d) => ({
+        path: d.path,
+        isConflict: false,
+        changeType: d.changeType,
+        oldBlobHash: d.oldObjectHash ?? null,
+        newBlobHash: d.newObjectHash ?? null,
+    }));
 
-    if (mergeCheckData) {
-        if (mergeCheckData.conflicts) {
-            mergeCheckData.conflicts.forEach(c => {
-                diffs.push({
-                    path: c.filePath,
-                    isConflict: true,
-                    conflictType: c.conflictType,
-                    changeType: 'CONFLICT',
-                    baseBlob: c.baseBlob,
-                    oursBlob: c.oursBlob,
-                    theirsBlob: c.theirsBlob,
-                });
-            });
-        }
-        if (mergeCheckData.mergedPaths) {
-            Object.entries(mergeCheckData.mergedPaths).forEach(([p, entry]) => {
-                if (!diffs.some(d => d.path === p)) {
-                    diffs.push({
-                        path: p,
-                        isConflict: false,
-                        changeType: entry.oldBlobHash === null ? 'ADD' : 'MODIFY',
-                        oldBlobHash: entry.oldBlobHash,
-                        newBlobHash: entry.newBlobHash,
-                    });
-                }
-            });
-        }
-    }
-
-    const canCreatePr = title.trim().length > 0 && mergeCheckData?.canMerge === true && !isSubmitting;
+    const canCreatePr = title.trim().length > 0 && !isSubmitting;
 
     const scrollToDiff = (diffId: string) => {
         const el = diffRefs.current[diffId];
@@ -140,13 +117,12 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                 <FileText className="inline-block h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground group-hover:text-foreground" />
                                 <span className="truncate">{diff.path}</span>
                             </span>
-                            <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ml-2 shrink-0 ${
-                                diff.isConflict ? 'bg-red-500/10 text-red-500' :
-                                diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
-                                diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
-                                diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
-                                'bg-blue-500/10 text-blue-500'
-                            }`}>
+                            <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ml-2 shrink-0 ${diff.isConflict ? 'bg-red-500/10 text-red-500' :
+                                    diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
+                                        diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
+                                            diff.changeType === 'RENAME' ? 'bg-purple-500/10 text-purple-500' :
+                                                'bg-blue-500/10 text-blue-500'
+                                }`}>
                                 {diff.isConflict ? 'CONFLICT' : diff.changeType}
                             </span>
                         </button>
@@ -157,7 +133,7 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 scroll-smooth">
                 <div className="max-w-4xl w-full mx-auto space-y-10 pb-20">
-                    
+
                     {/* Top Header & Action */}
                     <div className="flex items-center justify-between gap-4 border-b pb-4">
                         <div>
@@ -169,10 +145,10 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                 Create a pull request to merge changes from your workspace into upstream.
                             </p>
                         </div>
-                        <Button 
-                            onClick={handleCreatePr} 
-                            disabled={!canCreatePr} 
-                            title={!title.trim() ? "Title is required" : mergeCheckData && !mergeCheckData.canMerge ? "Cannot create PR with conflicts" : "Create Pull Request"}
+                        <Button
+                            onClick={handleCreatePr}
+                            disabled={!canCreatePr}
+                            title={!title.trim() ? "Title is required" : "Create Pull Request"}
                             className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white gap-2 shrink-0"
                         >
                             {isSubmitting ? (
@@ -197,47 +173,24 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                 <label className="text-sm font-medium text-foreground">
                                     Title <span className="text-destructive">*</span>
                                 </label>
-                                <Input 
-                                    value={title} 
-                                    onChange={(e) => setTitle(e.target.value)} 
+                                <Input
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
                                     placeholder="e.g. Add user authentication feature"
                                     disabled={isSubmitting}
                                 />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium text-foreground">Description</label>
-                                <Textarea 
-                                    value={description} 
-                                    onChange={(e) => setDescription(e.target.value)} 
+                                <Textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Describe your changes and context..."
                                     className="min-h-[120px] resize-none"
                                     disabled={isSubmitting}
                                 />
                             </div>
-                            {mergeCheckData && (
-                                <div className={`p-4 rounded-lg border flex items-center justify-between text-sm ${
-                                mergeCheckData.canMerge 
-                                    ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400' 
-                                    : 'bg-destructive/10 border-destructive/20 text-destructive'
-                            }`}>
-                                <div className="flex items-center gap-2 font-medium">
-                                    {mergeCheckData.canMerge ? (
-                                        <>
-                                            <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-                                            <span>Able to merge automatically. No conflicts detected.</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-                                            <span>Cannot merge automatically due to {mergeCheckData.stats.conflictCount} conflict(s).</span>
-                                        </>
-                                    )}
-                                </div>
-                                <div className="text-xs font-mono opacity-80">
-                                    {mergeCheckData.stats.cleanFiles} clean / {mergeCheckData.stats.totalFiles} total files
-                                </div>
-                            </div>
-                        )}
+
                         </div>
                     </section>
 
@@ -259,24 +212,26 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                     No commits found in workspace.
                                 </div>
                             ) : (
-                                commits.map((commit) => (
-                                    <div key={commit.commitHash} className="flex gap-4 items-start relative">
-                                        <div className="mt-0.5 shrink-0 relative z-10 bg-background">
-                                            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                                                <GitCommit className="h-4 w-4 text-muted-foreground" />
+                                [...commits]
+                                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                                    .map((commit) => (
+                                        <div key={commit.commitHash} className="flex gap-4 items-start relative">
+                                            <div className="mt-0.5 shrink-0 relative z-10 bg-background">
+                                                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                                                    <GitCommit className="h-4 w-4 text-muted-foreground" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 bg-card border rounded-lg p-3 text-sm">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-medium">{commit.message}</span>
+                                                    <span className="text-muted-foreground text-xs font-mono">{commit.commitHash.length > 8 ? `${commit.commitHash.slice(0, 8)}...` : commit.commitHash}</span>
+                                                </div>
+                                                <div className="text-xs text-muted-foreground mt-1">
+                                                    {new Date(commit.timestamp).toLocaleString()}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex-1 bg-card border rounded-lg p-3 text-sm">
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-medium">{commit.message}</span>
-                                                <span className="text-muted-foreground text-xs font-mono">{commit.commitHash.length > 8 ? `${commit.commitHash.slice(0, 8)}...` : commit.commitHash}</span>
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1">
-                                                {new Date(commit.timestamp).toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
+                                    ))
                             )}
                         </div>
                     </section>
@@ -285,14 +240,14 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                     <section>
                         <h2 className="text-lg font-semibold mb-4 border-b pb-2">Changed Files</h2>
                         <div className="space-y-6">
-                            {isLoadingMergeCheck ? (
+                            {isLoadingDiffs ? (
                                 <div className="py-8 text-center text-sm text-muted-foreground flex justify-center items-center">
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Loading file changes...
                                 </div>
-                            ) : mergeCheckError ? (
+                            ) : diffsError ? (
                                 <div className="py-8 text-center text-sm text-destructive">
-                                    {mergeCheckError}
+                                    {diffsError}
                                 </div>
                             ) : diffs.length === 0 ? (
                                 <div className="py-8 text-center text-sm text-muted-foreground">
@@ -302,8 +257,8 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                 diffs.map((diff) => {
                                     const mode = selectedViewModes[diff.path] || 'new';
                                     return (
-                                        <div 
-                                            key={diff.path} 
+                                        <div
+                                            key={diff.path}
                                             id={diff.path}
                                             ref={(el) => {
                                                 if (el) diffRefs.current[diff.path] = el;
@@ -312,9 +267,8 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                         >
                                             <div className="flex items-center justify-between bg-muted/40 px-4 py-2 border-b">
                                                 <div className="font-mono text-sm font-medium flex items-center gap-2">
-                                                    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-                                                        diff.isConflict ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'
-                                                    }`}>
+                                                    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${diff.isConflict ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'
+                                                        }`}>
                                                         {diff.isConflict ? `CONFLICT (${diff.conflictType})` : 'MERGED'}
                                                     </span>
                                                     <span>{diff.path}</span>
@@ -341,18 +295,18 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                                                             <span className="font-semibold text-destructive">Conflict Type: {diff.conflictType}</span>
                                                             <span>Base: {diff.baseBlob?.slice(0, 8) ?? 'none'} | Ours: {diff.oursBlob?.slice(0, 8) ?? 'none'} | Theirs: {diff.theirsBlob?.slice(0, 8) ?? 'none'}</span>
                                                         </div>
-                                                        <DraftFileContentViewer 
-                                                            repoId={repoId} 
-                                                            blobHash={mode === 'old' ? diff.oursBlob : diff.theirsBlob} 
-                                                            label={mode === 'old' ? 'Ours (Repo HEAD)' : 'Theirs (Workspace HEAD)'} 
+                                                        <DraftFileContentViewer
+                                                            repoId={repoId}
+                                                            blobHash={mode === 'old' ? diff.oursBlob : diff.theirsBlob}
+                                                            label={mode === 'old' ? 'Ours (Repo HEAD)' : 'Theirs (Workspace HEAD)'}
                                                             filePath={diff.path}
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <DraftFileContentViewer 
-                                                        repoId={repoId} 
-                                                        blobHash={mode === 'old' ? diff.oldBlobHash : diff.newBlobHash} 
-                                                        label={mode === 'old' ? 'Old File (Repo HEAD)' : 'Updated File (Auto-merged)'} 
+                                                    <DraftFileContentViewer
+                                                        repoId={repoId}
+                                                        blobHash={mode === 'old' ? diff.oldBlobHash : diff.newBlobHash}
+                                                        label={mode === 'old' ? 'Old File (Repo HEAD)' : 'Updated File (Auto-merged)'}
                                                         filePath={diff.path}
                                                     />
                                                 )}

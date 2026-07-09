@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Code, Eye, File, FileText, Folder, GitPullRequest, History, Pencil, RefreshCw } from 'lucide-react';
+import { Code, Eye, File, FileText, Folder, GitPullRequest, History, Loader2, Pencil, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { WorkspaceFileMenu } from '@/components/workspace-file-menu.component';
@@ -58,6 +58,7 @@ interface WorkspaceFileViewProps {
     ) => void;
     /** Open the create-PR flow. Only invoked when there is at least one commit. */
     onCreatePR?: () => void;
+    onViewPR?: () => void;
 }
 
 /**
@@ -105,6 +106,7 @@ export function WorkspaceFileView({
     onDeleteFile,
     onRenameFile,
     onCreatePR,
+    onViewPR,
 }: WorkspaceFileViewProps) {
     // When true the history pane takes over the main area, replacing the
     // breadcrumb bar with a title + back button.
@@ -157,6 +159,7 @@ export function WorkspaceFileView({
                     onRenameFile={onRenameFile}
                     onShowHistory={() => setShowHistory(true)}
                     onCreatePR={onCreatePR}
+                    onViewPR={onViewPR}
                 />
             ) : (
                 <FileContentView
@@ -257,6 +260,7 @@ function DirView({
     onRenameFile,
     onShowHistory,
     onCreatePR,
+    onViewPR,
 }: {
     workspaceName?: string;
     repoId?: string;
@@ -279,6 +283,7 @@ function DirView({
     onShowHistory: () => void;
     /** Open the create-PR flow. Only invoked when there is at least one commit. */
     onCreatePR?: () => void;
+    onViewPR?: () => void;
 }) {
     const dir = tree.getDir(path);
 
@@ -313,20 +318,6 @@ function DirView({
                             <span className="hidden sm:inline">Commit history</span>
                         </Button>
 
-                        {(prStatus === 'IN_SYNC' || prStatus === 'PENDING_SYNC') && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={prStatus === 'IN_SYNC'}
-                                title={prStatus === 'IN_SYNC' ? 'Workspace is up to date' : 'Sync workspace with upstream'}
-                                className="gap-1.5"
-                            >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                                <span className="hidden sm:inline">Sync</span>
-                            </Button>
-                        )}
-
                         {prStatus === 'CREATE_PR' && (
                             <Button
                                 type="button"
@@ -342,6 +333,19 @@ function DirView({
                             >
                                 <GitPullRequest className="h-4 w-4" />
                                 <span className="hidden sm:inline">Create PR</span>
+                            </Button>
+                        )}
+
+                        {prStatus === 'VIEW_PR' && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={onViewPR}
+                                title="View active pull request"
+                                className="gap-1.5 bg-green-600 text-white hover:bg-green-700"
+                            >
+                                <GitPullRequest className="h-4 w-4" />
+                                <span className="hidden sm:inline">View PR</span>
                             </Button>
                         )}
                     </div>

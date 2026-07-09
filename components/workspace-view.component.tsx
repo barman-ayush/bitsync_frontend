@@ -39,6 +39,8 @@ interface WorkspaceViewProps {
     onPathChange: (path: string | undefined) => void;
     /** Triggers navigation or action when Create PR is clicked. */
     onCreatePR?: () => void;
+    /** Triggers navigation or action when View PR is clicked. */
+    onViewPR?: (prId: string) => void;
 }
 
 /** The parent directory (trailing slash, or `''` for root) of a full path. */
@@ -79,6 +81,7 @@ export function WorkspaceView({
     onWorkspaceChange,
     onPathChange,
     onCreatePR,
+    onViewPR,
 }: WorkspaceViewProps) {
     const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
     const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
@@ -395,6 +398,11 @@ export function WorkspaceView({
                     onDeleteFile={handleDeleteFile}
                     onRenameFile={handleRenameFile}
                     onCreatePR={() => (onCreatePR ? onCreatePR() : setCreatePrOpen(true))}
+                    onViewPR={() => {
+                        if (prStatus.prData?.id && onViewPR) {
+                            onViewPR(prStatus.prData.id);
+                        }
+                    }}
                 />
             </div>
 

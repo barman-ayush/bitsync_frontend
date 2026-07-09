@@ -245,6 +245,7 @@ function RepositoryView() {
                         onWorkspaceChange={setWorkspaceId}
                         onPathChange={setPath}
                         onCreatePR={() => setPrId('draft')}
+                        onViewPR={(prId) => setPrId(prId)}
                     />
                 )}
                 {activeTab === 'pull-requests' && (

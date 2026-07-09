@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type PRStatus = 'CREATE_PR' | 'IN_SYNC' | 'PENDING_SYNC';
+export type PRStatus = 'CREATE_PR' | 'VIEW_PR';
 
 export interface UsePRStatusResult {
     /** A status request is in flight. */
     isLoading: boolean;
     /** The PR sync status of the workspace. */
     status: PRStatus | null;
+    /** The active PR details if status is VIEW_PR. */
+    prData: any | null;
     /** Re-fetch the status after PR creation or sync. */
     refresh: () => void;
 }
@@ -15,7 +17,7 @@ export interface UsePRStatusResult {
  * Tracks the PR status of the active workspace via
  * `GET /api/pr/status/:repoId/:workspaceId`.
  * 
- * The backend responds with `{ data: 'CREATE_PR' | 'IN_SYNC' | 'PENDING_SYNC' }`.
+ * The backend responds with `{ status: 'success', data: { status: 'CREATE_PR' | 'VIEW_PR', prData: any } }`.
  */
 export function usePRStatus(
     repoId: string | undefined,
@@ -23,12 +25,14 @@ export function usePRStatus(
 ): UsePRStatusResult {
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<PRStatus | null>(null);
+    const [prData, setPrData] = useState<any | null>(null);
 
     const controllerRef = useRef<AbortController | null>(null);
 
     const fetchStatus = useCallback(async () => {
         if (!repoId || !workspaceId) {
             setStatus(null);
+            setPrData(null);
             return;
         }
 
@@ -49,16 +53,18 @@ export function usePRStatus(
 
             if (!res.ok || !body?.data) {
                 setStatus(null);
+                setPrData(null);
                 return;
             }
 
-            // The backend returns `{ data: "CREATE_PR" }` directly (it is a string)
-            setStatus((body.data as PRStatus) ?? null);
+            setStatus((body.data.status as PRStatus) ?? null);
+            setPrData(body.data.prData ?? null);
         } catch (e) {
             if (controller.signal.aborted || (e as Error).name === 'AbortError') {
                 return;
             }
             setStatus(null);
+            setPrData(null);
         } finally {
             if (!controller.signal.aborted) setIsLoading(false);
         }
@@ -74,5 +80,5 @@ export function usePRStatus(
         fetchStatus();
     }, [fetchStatus]);
 
-    return { isLoading, status, refresh };
+    return { isLoading, status, prData, refresh };
 }
