@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { RepoTabId } from '@/components/repo-tabs.component';
 
-const REPO_TABS: RepoTabId[] = ['files', 'pull-requests', 'contributors', 'workspaces', 'settings'];
+const REPO_TABS: RepoTabId[] = ['files', 'pull-requests', 'review-requests', 'contributors', 'workspaces', 'settings'];
 const DEFAULT_TAB: RepoTabId = 'files';
 
 /**
@@ -84,8 +84,12 @@ export function useRepoUrlState(): RepoUrlState {
     );
 
     const setPrId = useCallback(
-        (next: string | undefined) => update({ tab: 'pull-requests', prId: next }),
-        [update],
+        (next: string | undefined) => {
+            const currentTab = searchParams.get('tab');
+            const targetTab = currentTab === 'review-requests' ? 'review-requests' : 'pull-requests';
+            update({ tab: targetTab, prId: next });
+        },
+        [update, searchParams],
     );
 
     return { tab, workspaceId, path, prId, setTab, setWorkspaceId, setPath, setPrId };

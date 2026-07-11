@@ -9,6 +9,7 @@ import { EmptyRepoState } from '@/components/empty-repo-state.component';
 import { Contributors } from '@/components/contributors.component';
 import { WorkspaceView } from '@/components/workspace-view.component';
 import { PullRequestsView } from '@/components/pull-requests-view.component';
+import { ReviewRequestsView } from '@/components/review-requests-view.component';
 import { useRepoUrlState } from '@/hooks/use-repo-url-state';
 import { FileItem } from '@/types/files';
 import { Contributor } from '@/types/contributors';
@@ -250,6 +251,13 @@ function RepositoryView() {
                 )}
                 {activeTab === 'pull-requests' && (
                     <PullRequestsView repoId={repoId} workspaceId={workspaceId} prId={prId} onPrIdChange={setPrId} />
+                )}
+                {activeTab === 'review-requests' && repoId && (
+                    <ReviewRequestsView
+                        repoId={repoId}
+                        prId={prId}
+                        onPrIdChange={setPrId}
+                    />
                 )}
                 {activeTab === 'settings' && (
                     <div className="flex items-center justify-center h-full text-muted-foreground">

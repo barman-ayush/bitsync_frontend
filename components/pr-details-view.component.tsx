@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, GitCommit, FileText, User, Calendar, GitPullRequest, MessageSquare, Loader2, Trash2, AlertCircle } from 'lucide-react';
+import { ChevronLeft, GitCommit, FileText, User, Calendar, GitPullRequest, MessageSquare, Loader2, Trash2, AlertCircle, CheckCircle2, XCircle, HelpCircle, Search, X } from 'lucide-react';
 import { usePRDetails, PRComment } from '@/hooks/use-pr-details';
 import { usePRCommits } from '@/hooks/use-pr-commits';
 import { useMergeCheck } from '@/hooks/use-merge-check';
+import { usePrMergeability } from '@/hooks/use-pr-mergeability';
 import { useBlobContent } from '@/hooks/use-blob-content';
 import { useToast } from '@/components/toast-provider';
 import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
+import { useRepoReviewerSearch } from '@/hooks/use-repo-reviewer-search';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
@@ -61,6 +65,82 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const [resolutions, setResolutions] = useState<{ [filePath: string]: { resolution: 'TAKE_OURS' | 'TAKE_THEIRS' | 'MANUAL', resolvedBlob: string | null } }>({});
     const [showCloseModal, setShowCloseModal] = useState(false);
     const [closeModalError, setCloseModalError] = useState<string | null>(null);
+
+    // Review Status & Reviewers State
+    const [reviews, setReviews] = useState<any[]>([]);
+    const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+    const [reviewsError, setReviewsError] = useState<string | null>(null);
+
+    const [reviewerSearch, setReviewerSearch] = useState('');
+    const [selectedReviewers, setSelectedReviewers] = useState<any[]>([]);
+    const [isAddingReviewers, setIsAddingReviewers] = useState(false);
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
+    
+    const { results: searchResults } = useRepoReviewerSearch(repoId, reviewerSearch);
+
+    const fetchReviews = useCallback(async () => {
+        setIsLoadingReviews(true);
+        setReviewsError(null);
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/api/pr/reviews/${encodeURIComponent(repoId)}/${encodeURIComponent(prId)}`,
+                { credentials: 'include' }
+            );
+            if (!res.ok) throw new Error('Failed to fetch reviews');
+            const json = await res.json();
+            setReviews(json.data || []);
+        } catch (err: any) {
+            setReviewsError(err.message);
+        } finally {
+            setIsLoadingReviews(false);
+        }
+    }, [repoId, prId]);
+
+    useEffect(() => {
+        fetchReviews();
+    }, [fetchReviews]);
+
+    const existingReviewerIds = new Set(reviews.map((r) => r.reviewerId));
+    const selectedReviewerIds = new Set(selectedReviewers.map((r) => r.id));
+    
+    const availableSearchResults = searchResults.filter(
+        (user) => !existingReviewerIds.has(user.id) && !selectedReviewerIds.has(user.id)
+    );
+
+    const handleSelectReviewer = (user: any) => {
+        setSelectedReviewers((prev) => [...prev, user]);
+        setReviewerSearch('');
+        setIsSearchFocused(false);
+    };
+
+    const handleAddReviewers = async () => {
+        if (selectedReviewers.length === 0) return;
+        setIsAddingReviewers(true);
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/api/pr/add-reviewers/${encodeURIComponent(repoId)}/${encodeURIComponent(prId)}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reviewerIds: selectedReviewers.map((u) => u.id),
+                    }),
+                    credentials: 'include',
+                }
+            );
+            if (!res.ok) {
+                const err = await res.json().catch(() => null);
+                throw new Error(err?.message ?? 'Failed to add reviewers');
+            }
+            addToast('Reviewers added successfully.', 'success');
+            setSelectedReviewers([]);
+            fetchReviews();
+        } catch (err: any) {
+            addToast(err.message, 'error');
+        } finally {
+            setIsAddingReviewers(false);
+        }
+    };
 
     useEffect(() => {
         if (fetchedPr?.comments) {
@@ -209,6 +289,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
 
     const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, fetchedPr?.workspaceId);
     const { data: mergeCheckData, isLoading: isLoadingMergeCheck, error: mergeCheckError } = useMergeCheck(repoId, fetchedPr?.workspaceId!);
+    const { mergeability: prMergeability, isLoading: isLoadingMergeability } = usePrMergeability(repoId, fetchedPr?.workspaceId, prId);
 
     const diffs: {
         path: string;
@@ -281,7 +362,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                     <h3 className="font-semibold text-sm text-foreground">Changed Files</h3>
                     <p className="text-xs text-muted-foreground">{diffs.length} files modified</p>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2">
+                <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
                     {isLoadingMergeCheck ? (
                         <div className="py-4 text-center text-xs text-muted-foreground flex justify-center items-center">
                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading files...
@@ -311,7 +392,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 scroll-smooth">
+            <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 scroll-smooth no-scrollbar">
                 <div className="max-w-4xl w-full mx-auto space-y-10 pb-20">
 
                     {/* Section 1: PR Metadata */}
@@ -335,28 +416,46 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                {pr.status === 'OPEN' && (
+                            <div className="flex flex-col items-end gap-2 shrink-0">
+                                <div className="flex items-center gap-2">
+                                    {pr.status === 'OPEN' && (
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setCloseModalError(null);
+                                                setShowCloseModal(true);
+                                            }}
+                                            disabled={isClosingPR}
+                                            className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-2"
+                                        >
+                                            Close PR
+                                        </Button>
+                                    )}
                                     <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                            setCloseModalError(null);
-                                            setShowCloseModal(true);
-                                        }}
-                                        disabled={isClosingPR}
-                                        className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-2"
+                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                        disabled={
+                                            pr.status !== 'OPEN' ||
+                                            isMerging ||
+                                            isLoadingMergeability ||
+                                            (prMergeability !== null && !prMergeability.canMerge)
+                                        }
+                                        onClick={handleMerge}
+                                        title={
+                                            prMergeability && !prMergeability.canMerge
+                                                ? `Cannot merge: ${prMergeability.conflictCount} unresolved conflicts remaining.`
+                                                : undefined
+                                        }
                                     >
-                                        Close PR
+                                        {isMerging || isLoadingMergeability ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                        {pr.status === 'CLOSED' ? 'PR Closed' : pr.status === 'MERGED' ? 'PR Merged' : 'Merge PR'}
                                     </Button>
+                                </div>
+                                {prMergeability && !prMergeability.canMerge && (
+                                    <div className="flex items-center gap-1.5 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded px-2.5 py-1">
+                                        <AlertCircle className="h-3.5 w-3.5" />
+                                        <span>{prMergeability.conflictCount} pending conflicts</span>
+                                    </div>
                                 )}
-                                <Button
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                    disabled={pr.status !== 'OPEN' || isMerging || (diffs.filter(d => d.isConflict).length > 0 && Object.keys(resolutions).length < diffs.filter(d => d.isConflict).length)}
-                                    onClick={handleMerge}
-                                >
-                                    {isMerging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                    {pr.status === 'CLOSED' ? 'PR Closed' : pr.status === 'MERGED' ? 'PR Merged' : 'Merge PR'}
-                                </Button>
                             </div>
                         </div>
 
@@ -597,6 +696,124 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                         </div>
                     </section>
 
+                </div>
+            </div>
+
+            {/* Right Sidebar - Review Status & Add Reviewers */}
+            <div className="w-80 border-l bg-card/40 flex flex-col h-full shrink-0 overflow-y-auto p-6 space-y-6 no-scrollbar">
+                {/* Review Status Section */}
+                <div className="space-y-4">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Review Status</h4>
+                    {isLoadingReviews ? (
+                        <div className="py-4 text-center text-xs text-muted-foreground flex justify-center items-center">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Loading...
+                        </div>
+                    ) : reviewsError ? (
+                        <div className="text-xs text-destructive">{reviewsError}</div>
+                    ) : reviews.length === 0 ? (
+                        <div className="text-xs text-muted-foreground italic">No reviewers assigned.</div>
+                    ) : (
+                        <div className="space-y-3">
+                            {reviews.map((r) => (
+                                <div key={r.id} className="border border-border bg-card rounded-lg p-3 space-y-2 text-xs shadow-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Avatar className="h-6 w-6">
+                                                <AvatarFallback className="text-[10px] font-bold bg-muted">
+                                                    {r.reviewer?.displayName?.slice(0, 2).toUpperCase() || 'U'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <span className="font-semibold text-foreground">{r.reviewer?.displayName || 'Unknown'}</span>
+                                        </div>
+                                        
+                                        {/* Verdict badge */}
+                                        {r.verdict === 'APPROVED' ? (
+                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-green-500 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">
+                                                <CheckCircle2 className="h-3 w-3" /> Approved
+                                            </span>
+                                        ) : r.verdict === 'CHANGES_REQUESTED' ? (
+                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
+                                                <XCircle className="h-3 w-3" /> Changes Requested
+                                            </span>
+                                        ) : r.verdict === 'PR_CLOSED' ? (
+                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground bg-muted border px-2 py-0.5 rounded-full">
+                                                PR Closed
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                                                <HelpCircle className="h-3 w-3" /> Pending
+                                            </span>
+                                        )}
+                                    </div>
+                                    {r.body && (
+                                        <div className="bg-muted/40 p-2 rounded text-muted-foreground italic break-words border border-border/40">
+                                            "{r.body}"
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Add Reviewers Section */}
+                <div className="space-y-4 pt-4 border-t border-border">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Add Reviewers</h4>
+                    
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        <Input
+                            placeholder="Search repo members..."
+                            value={reviewerSearch}
+                            onChange={(e) => setReviewerSearch(e.target.value)}
+                            onFocus={() => setIsSearchFocused(true)}
+                            onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                            className="pl-8 h-8 text-xs w-full text-foreground bg-background"
+                        />
+                        
+                        {isSearchFocused && availableSearchResults.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-40 overflow-y-auto z-50">
+                                {availableSearchResults.map((user) => (
+                                    <button
+                                        key={user.id}
+                                        onMouseDown={() => handleSelectReviewer(user)}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors flex items-center justify-between text-foreground"
+                                    >
+                                        <span>{user.displayName} ({user.username})</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Display selected reviewers queue */}
+                    {selectedReviewers.length > 0 && (
+                        <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1">
+                                {selectedReviewers.map((user) => (
+                                    <span key={user.id} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-[10px] font-semibold pl-2 pr-1 py-0.5 rounded-full border">
+                                        {user.displayName}
+                                        <button
+                                            onClick={() => setSelectedReviewers((prev) => prev.filter((u) => u.id !== user.id))}
+                                            className="hover:bg-muted rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                                        >
+                                            <X className="h-2.5 w-2.5" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                            
+                            <Button
+                                size="sm"
+                                onClick={handleAddReviewers}
+                                disabled={isAddingReviewers}
+                                className="w-full h-8 text-xs font-semibold"
+                            >
+                                {isAddingReviewers && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
+                                Assign Reviewers
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
 
