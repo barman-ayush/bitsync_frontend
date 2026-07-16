@@ -11,6 +11,7 @@ import { useBlobContent } from '@/hooks/use-blob-content';
 import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useRepoReviewerSearch, type ReviewerSearchResult } from '@/hooks/use-repo-reviewer-search';
+import { useToast } from '@/components/toast-provider';
 
 
 interface DraftPrViewProps {
@@ -21,6 +22,7 @@ interface DraftPrViewProps {
 }
 
 export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftPrViewProps) {
+    const { addToast } = useToast();
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,11 +88,11 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
 
     const handleCreatePr = async () => {
         if (!title.trim()) {
-            alert('Pull request title is required.');
+            addToast('Pull request title is required.', 'warning');
             return;
         }
         if (!repoId || !workspaceId) {
-            alert('Missing repository or workspace context.');
+            addToast('Missing repository or workspace context.', 'error');
             return;
         }
 
@@ -114,10 +116,10 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
             if (res.ok && json?.data?.id) {
                 onPRCreated(json.data.id);
             } else {
-                alert(json?.message ?? 'Failed to create pull request.');
+                addToast(json?.message ?? 'Failed to create pull request.', 'error');
             }
         } catch (err: any) {
-            alert(err.message ?? 'Network error');
+            addToast(err.message ?? 'Network error', 'error');
         } finally {
             setIsSubmitting(false);
         }

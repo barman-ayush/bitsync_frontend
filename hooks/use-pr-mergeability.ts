@@ -6,6 +6,7 @@ export interface PrMergeability {
     totalConflictCount: number;
     hasMergeState: boolean;
     prStatus?: string;
+    isMerged?: boolean;
 }
 
 export function usePrMergeability(repoId: string, workspaceId: string | null | undefined, prId: string) {

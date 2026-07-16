@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useUser } from '@/contexts/user.context';
 import { useToast } from '@/components/toast-provider';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -227,7 +226,7 @@ export function NotificationsButton() {
                     </div>
                 </SheetHeader>
 
-                <ScrollArea className="flex-1">
+                <div className="flex-1 overflow-y-auto no-scrollbar">
                     {status === 'loading' && notifications.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -270,7 +269,7 @@ export function NotificationsButton() {
                             ))}
                         </ul>
                     )}
-                </ScrollArea>
+                </div>
             </SheetContent>
         </Sheet>
     );

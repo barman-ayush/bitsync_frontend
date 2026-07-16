@@ -32,7 +32,7 @@ export function usePRList(repoId: string | undefined, searchQuery: string): UseP
     const [nextCursor, setNextCursor] = useState<string | null>(null);
 
     const fetchPRs = useCallback(
-        async (cursor: string | null, isRefresh = false) => {
+        async (cursor: string | null, isRefresh = false, signal?: AbortSignal) => {
             if (!repoId) return;
 
             setIsLoading(true);
@@ -50,7 +50,10 @@ export function usePRList(repoId: string | undefined, searchQuery: string): UseP
 
                 const res = await fetch(url.toString(), {
                     credentials: 'include',
+                    signal,
                 });
+
+                if (signal?.aborted) return;
 
                 if (!res.ok) {
                     const errorBody = await res.json().catch(() => null);
@@ -65,21 +68,26 @@ export function usePRList(repoId: string | undefined, searchQuery: string): UseP
                     setHasMore(body.pagination?.hasMore ?? false);
                     setNextCursor(body.pagination?.nextCursor ?? null);
                 }
-            } catch (error) {
+            } catch (error: any) {
+                if (signal?.aborted || error.name === 'AbortError') return;
                 console.error(error);
                 addToast('An unexpected error occurred while fetching PRs.', 'error');
             } finally {
-                setIsLoading(false);
+                if (!signal?.aborted) {
+                    setIsLoading(false);
+                }
             }
         },
         [repoId, searchQuery, addToast]
     );
 
     useEffect(() => {
+        const controller = new AbortController();
         setPrs([]);
         setNextCursor(null);
         setHasMore(false);
-        fetchPRs(null, true);
+        fetchPRs(null, true, controller.signal);
+        return () => controller.abort();
     }, [repoId, searchQuery, fetchPRs]);
 
     const loadMore = useCallback(() => {

@@ -2,17 +2,17 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, GitCommit, FileText, User, Calendar, GitPullRequest, MessageSquare, Loader2, Trash2, AlertCircle, CheckCircle2, XCircle, HelpCircle, Search, X } from 'lucide-react';
 import { usePRDetails, PRComment } from '@/hooks/use-pr-details';
 import { usePRCommits } from '@/hooks/use-pr-commits';
-import { useMergeCheck } from '@/hooks/use-merge-check';
 import { usePrMergeability } from '@/hooks/use-pr-mergeability';
 import { useBlobContent } from '@/hooks/use-blob-content';
 import { useToast } from '@/components/toast-provider';
+import { usePrChangesView } from '@/hooks/use-pr-changes-view';
 import { SafeFileContentRenderer } from '@/components/safe-file-content-renderer.component';
 import { useRepoReviewerSearch } from '@/hooks/use-repo-reviewer-search';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { ChevronLeft, GitCommit, FileText, User, Calendar, GitPullRequest, MessageSquare, Loader2, Trash2, AlertCircle, CheckCircle2, XCircle, HelpCircle, Search, X, AlertTriangle } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -54,7 +54,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const { addToast } = useToast();
 
     const diffRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-    const [selectedViewModes, setSelectedViewModes] = useState<{ [key: string]: 'old' | 'new' }>({});
+    const [selectedViewModes, setSelectedViewModes] = useState<{ [key: string]: string }>({});
     const [generalDraft, setGeneralDraft] = useState('');
     const [showGeneralCommentInput, setShowGeneralCommentInput] = useState(false);
     const [commentsList, setCommentsList] = useState<PRComment[]>([]);
@@ -62,7 +62,10 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
     const [isDeletingComment, setIsDeletingComment] = useState<{ [key: string]: boolean }>({});
     const [isClosingPR, setIsClosingPR] = useState(false);
     const [isMerging, setIsMerging] = useState(false);
-    const [resolutions, setResolutions] = useState<{ [filePath: string]: { resolution: 'TAKE_OURS' | 'TAKE_THEIRS' | 'MANUAL', resolvedBlob: string | null } }>({});
+    const [resolutions, setResolutions] = useState<{ [filePath: string]: { conflictId: string; resolution: 'PENDING' | 'TAKE_OURS' | 'TAKE_THEIRS' | 'MANUAL'; resolvedBlob: string | null } }>({});
+    const [initialResolutions, setInitialResolutions] = useState<{ [filePath: string]: { conflictId: string; resolution: 'PENDING' | 'TAKE_OURS' | 'TAKE_THEIRS' | 'MANUAL'; resolvedBlob: string | null } }>({});
+    const [uploadingFiles, setUploadingFiles] = useState<{ [filePath: string]: boolean }>({});
+    const [isSavingResolutions, setIsSavingResolutions] = useState(false);
     const [showCloseModal, setShowCloseModal] = useState(false);
     const [closeModalError, setCloseModalError] = useState<string | null>(null);
 
@@ -226,53 +229,100 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
             const data1 = await res1.json().catch(() => ({}));
 
             if (res1.ok) {
+                addToast('Pull request merged successfully!', 'success');
                 window.location.reload();
                 return;
             }
 
-            if (res1.status === 409 && data1.data?.mergeStateId) {
-                const mergeStateId = data1.data.mergeStateId;
-                const dbConflicts = data1.data.conflicts;
-
-                const mappedResolutions = dbConflicts.map((c: any) => {
-                    const choice = resolutions[c.filePath];
-                    return {
-                        conflictId: c.id,
-                        resolution: choice.resolution,
-                        resolvedBlob: choice.resolvedBlob
-                    };
-                });
-
-                const res2 = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/merge-state/${encodeURIComponent(mergeStateId)}/resolve`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ resolutions: mappedResolutions }),
-                    credentials: 'include'
-                });
-
-                if (!res2.ok) {
-                    addToast((await res2.json().catch(() => ({}))).message || 'Failed to save conflict resolutions', 'error');
-                    return;
-                }
-
-                const res3 = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/merge-state/${encodeURIComponent(mergeStateId)}/finalize`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-
-                if (!res3.ok) {
-                    addToast((await res3.json().catch(() => ({}))).message || 'Failed to finalize merge', 'error');
-                    return;
-                }
-
-                window.location.reload();
-            } else {
-                addToast(data1.message || 'Merge failed', 'error');
-            }
+            addToast(data1.message || 'Merge failed', 'error');
         } catch (err: any) {
             addToast(err.message || 'Network error during merge', 'error');
         } finally {
             setIsMerging(false);
+        }
+    };
+
+    const handleSaveResolutions = async () => {
+        setIsSavingResolutions(true);
+        try {
+            const resolvedList = Object.entries(resolutions)
+                .filter(([_, r]) => r.resolution !== 'PENDING')
+                .map(([_, r]) => ({
+                    conflictId: r.conflictId,
+                    resolution: r.resolution,
+                    resolvedBlob: r.resolvedBlob
+                }));
+
+            if (resolvedList.length === 0) {
+                addToast('No resolved conflicts to save.', 'info');
+                setIsSavingResolutions(false);
+                return;
+            }
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pr/resolve-conflicts/${encodeURIComponent(repoId)}/${encodeURIComponent(prId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resolutions: resolvedList }),
+                credentials: 'include'
+            });
+
+            const json = await res.json().catch(() => null);
+            if (res.ok) {
+                addToast(json?.message ?? 'Conflict resolutions saved successfully.', 'success');
+                refetchChanges();
+                refreshMergeability();
+            } else {
+                addToast(json?.message ?? 'Failed to save conflict resolutions.', 'error');
+            }
+        } catch (err: any) {
+            addToast(err.message ?? 'Network error while saving resolutions', 'error');
+        } finally {
+            setIsSavingResolutions(false);
+        }
+    };
+
+    const handleUndo = () => {
+        setResolutions(JSON.parse(JSON.stringify(initialResolutions)));
+        addToast('Local conflict resolutions undone.', 'info');
+    };
+
+    const handleFileUpload = async (filePath: string, conflictId: string, file: File) => {
+        setUploadingFiles(prev => ({ ...prev, [filePath]: true }));
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/api/workspace/blob/${encodeURIComponent(repoId)}`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                    },
+                    body: file,
+                }
+            );
+
+            const json = await res.json().catch(() => null);
+            const blobHash = json?.data?.blobHash;
+
+            if (!res.ok || !blobHash) {
+                addToast(json?.message ?? 'Failed to upload resolved file.', 'error');
+                return;
+            }
+
+            setResolutions(prev => ({
+                ...prev,
+                [filePath]: {
+                    conflictId,
+                    resolution: 'MANUAL',
+                    resolvedBlob: blobHash
+                }
+            }));
+            setSelectedViewModes(prev => ({ ...prev, [filePath]: 'resolved' }));
+            addToast('Resolved file uploaded successfully. Remember to click "Save Resolutions".', 'success');
+        } catch (err: any) {
+            addToast(err.message ?? 'Network error during file upload', 'error');
+        } finally {
+            setUploadingFiles(prev => ({ ...prev, [filePath]: false }));
         }
     };
 
@@ -283,54 +333,64 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
         }
     };
 
-    const toggleViewMode = (diffId: string, mode: 'old' | 'new') => {
+    const toggleViewMode = (diffId: string, mode: string) => {
         setSelectedViewModes((prev) => ({ ...prev, [diffId]: mode }));
     };
 
     const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, fetchedPr?.workspaceId);
-    const { data: mergeCheckData, isLoading: isLoadingMergeCheck, error: mergeCheckError } = useMergeCheck(repoId, fetchedPr?.workspaceId!);
-    const { mergeability: prMergeability, isLoading: isLoadingMergeability } = usePrMergeability(repoId, fetchedPr?.workspaceId, prId);
+    const { mergeability: prMergeability, isLoading: isLoadingMergeability, refresh: refreshMergeability } = usePrMergeability(repoId, fetchedPr?.workspaceId, prId);
+    const { files: changesFiles, isLoading: isLoadingChanges, error: changesError, refetch: refetchChanges } = usePrChangesView(
+        repoId,
+        fetchedPr?.workspaceId || undefined,
+        prId
+    );
 
-    const diffs: {
-        path: string;
-        isConflict: boolean;
-        conflictType?: string;
-        changeType: string;
-        oldBlobHash?: string | null;
-        newBlobHash?: string | null;
-        baseBlob?: string | null;
-        oursBlob?: string | null;
-        theirsBlob?: string | null;
-    }[] = [];
+    const isLoadingMergeCheck = isLoadingChanges;
+    const mergeCheckError = changesError;
 
-    if (mergeCheckData) {
-        if (mergeCheckData.conflicts) {
-            mergeCheckData.conflicts.forEach(c => {
-                diffs.push({
-                    path: c.filePath,
-                    isConflict: true,
-                    conflictType: c.conflictType,
-                    changeType: 'CONFLICT',
-                    baseBlob: c.baseBlob,
-                    oursBlob: c.oursBlob,
-                    theirsBlob: c.theirsBlob,
-                });
-            });
-        }
-        if (mergeCheckData.mergedPaths) {
-            Object.entries(mergeCheckData.mergedPaths).forEach(([p, entry]) => {
-                if (!diffs.some(d => d.path === p)) {
-                    diffs.push({
-                        path: p,
-                        isConflict: false,
-                        changeType: entry.oldBlobHash === null ? 'ADD' : 'MODIFY',
-                        oldBlobHash: entry.oldBlobHash,
-                        newBlobHash: entry.newBlobHash,
-                    });
+    useEffect(() => {
+        if (changesFiles) {
+            const initialRes: { [filePath: string]: { conflictId: string; resolution: 'PENDING' | 'TAKE_OURS' | 'TAKE_THEIRS' | 'MANUAL'; resolvedBlob: string | null } } = {};
+            changesFiles.forEach(file => {
+                if (file.isConflicted && file.conflictInfo) {
+                    initialRes[file.path] = {
+                        conflictId: file.conflictInfo.conflictId,
+                        resolution: file.conflictInfo.resolution,
+                        resolvedBlob: file.conflictInfo.resolvedBlob
+                    };
+                    if (file.conflictInfo.resolution !== 'PENDING') {
+                        setSelectedViewModes(prev => ({ ...prev, [file.path]: 'resolved' }));
+                    }
                 }
             });
+            setResolutions(JSON.parse(JSON.stringify(initialRes)));
+            setInitialResolutions(JSON.parse(JSON.stringify(initialRes)));
         }
-    }
+    }, [changesFiles]);
+
+    const diffs = changesFiles.map(file => ({
+        path: file.path,
+        isConflict: file.isConflicted,
+        conflictType: file.conflictInfo?.conflictType,
+        changeType: file.changeType,
+        oldBlobHash: file.oldObjectHash,
+        newBlobHash: file.newObjectHash,
+        baseBlob: file.conflictInfo?.baseBlob,
+        oursBlob: file.conflictInfo?.oursBlob,
+        theirsBlob: file.conflictInfo?.theirsBlob,
+        conflictInfo: file.conflictInfo,
+    }));
+
+    const hasConflicts = fetchedPr?.status === 'OPEN' && (prMergeability ? (!prMergeability.canMerge && !prMergeability.isMerged) : diffs.some(d => d.isConflict));
+
+    const hasLocalChanges = Object.keys(resolutions).some(path => {
+        const current = resolutions[path];
+        const initial = initialResolutions[path];
+        if (!initial) return false;
+        return current.resolution !== initial.resolution || current.resolvedBlob !== initial.resolvedBlob;
+    });
+
+    const allResolved = Object.keys(resolutions).length > 0 && Object.values(resolutions).every(r => r.resolution !== 'PENDING');
 
     if (isLoading) {
         return (
@@ -417,44 +477,88 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 </div>
                             </div>
                             <div className="flex flex-col items-end gap-2 shrink-0">
-                                <div className="flex items-center gap-2">
-                                    {pr.status === 'OPEN' && (
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => {
-                                                setCloseModalError(null);
-                                                setShowCloseModal(true);
-                                            }}
-                                            disabled={isClosingPR}
-                                            className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-2"
-                                        >
-                                            Close PR
-                                        </Button>
-                                    )}
-                                    <Button
-                                        className="bg-green-600 hover:bg-green-700 text-white"
-                                        disabled={
-                                            pr.status !== 'OPEN' ||
-                                            isMerging ||
-                                            isLoadingMergeability ||
-                                            (prMergeability !== null && !prMergeability.canMerge)
-                                        }
-                                        onClick={handleMerge}
-                                        title={
-                                            prMergeability && !prMergeability.canMerge
-                                                ? `Cannot merge: ${prMergeability.conflictCount} unresolved conflicts remaining.`
-                                                : undefined
-                                        }
-                                    >
-                                        {isMerging || isLoadingMergeability ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                        {pr.status === 'CLOSED' ? 'PR Closed' : pr.status === 'MERGED' ? 'PR Merged' : 'Merge PR'}
-                                    </Button>
-                                </div>
-                                {prMergeability && !prMergeability.canMerge && (
-                                    <div className="flex items-center gap-1.5 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded px-2.5 py-1">
-                                        <AlertCircle className="h-3.5 w-3.5" />
-                                        <span>{prMergeability.conflictCount} pending conflicts</span>
+                                {hasConflicts ? (
+                                    <div className="flex flex-col items-end gap-2">
+                                        {/* Warning message */}
+                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-destructive bg-destructive/10 border border-destructive/20 rounded px-2.5 py-1 animate-pulse animate-duration-1000">
+                                            <AlertCircle className="h-3.5 w-3.5" />
+                                            <span>Please resolve conflicts before merging</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {/* Undo button: once selects at least one, show the undo button */}
+                                            {hasLocalChanges ? (
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={handleUndo}
+                                                    className="gap-1.5 cursor-pointer hover:bg-muted transition-colors animate-in fade-in duration-200"
+                                                >
+                                                    Undo
+                                                </Button>
+                                            ) : null}
+                                            
+                                            {/* Resolve Conflicts button: shown, clickable only when all selected */}
+                                            {allResolved ? (
+                                                <Button
+                                                    onClick={handleSaveResolutions}
+                                                    disabled={isSavingResolutions}
+                                                    className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5 cursor-pointer transition-all animate-in fade-in duration-200"
+                                                >
+                                                    {isSavingResolutions && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                                                    Resolve Conflicts
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    disabled
+                                                    className="bg-muted text-muted-foreground gap-1.5 cursor-not-allowed opacity-50"
+                                                >
+                                                    Resolve Conflicts
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center gap-2">
+                                            {pr.status === 'OPEN' && (
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setCloseModalError(null);
+                                                        setShowCloseModal(true);
+                                                    }}
+                                                    disabled={isClosingPR}
+                                                    className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive gap-2"
+                                                >
+                                                    Close PR
+                                                </Button>
+                                            )}
+                                            <Button
+                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                                disabled={
+                                                    pr.status !== 'OPEN' ||
+                                                    prMergeability?.isMerged ||
+                                                    isMerging ||
+                                                    isLoadingMergeability ||
+                                                    (prMergeability !== null && !prMergeability.canMerge)
+                                                }
+                                                onClick={handleMerge}
+                                                title={
+                                                    prMergeability && !prMergeability.canMerge
+                                                        ? `Cannot merge: ${prMergeability.conflictCount} unresolved conflicts remaining.`
+                                                        : undefined
+                                                }
+                                            >
+                                                {isMerging || isLoadingMergeability ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                                {pr.status === 'CLOSED' ? 'PR Closed' : (pr.status === 'MERGED' || prMergeability?.isMerged) ? 'PR Merged' : 'Merge PR'}
+                                            </Button>
+                                        </div>
+                                        {prMergeability && !prMergeability.canMerge && !prMergeability.isMerged && pr.status === 'OPEN' && (
+                                            <div className="flex items-center gap-1.5 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded px-2.5 py-1">
+                                                <AlertCircle className="h-3.5 w-3.5" />
+                                                <span>{prMergeability.conflictCount} pending conflicts</span>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -598,6 +702,28 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                     {/* Section 3: Changed Files */}
                     <section>
                         <h2 className="text-lg font-semibold mb-4 border-b pb-2">Changed Files</h2>
+
+                        {hasConflicts && (
+                            <div className="flex items-center justify-between p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg mb-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex items-center gap-2.5">
+                                    <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 animate-pulse" />
+                                    <div className="text-sm">
+                                        <span className="font-semibold text-amber-800 dark:text-amber-300">Conflicts Detected</span>
+                                        <p className="text-muted-foreground text-xs mt-0.5">Please resolve the files below by choosing Ours, Theirs, or uploading a resolved version, then click Save Resolutions.</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={handleSaveResolutions}
+                                    disabled={isSavingResolutions}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5 cursor-pointer shadow-sm hover:scale-[1.01] active:scale-[0.99] transition-all"
+                                >
+                                    {isSavingResolutions && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                                    Save Resolutions
+                                </Button>
+                            </div>
+                        )}
+
                         <div className="space-y-6">
                             {isLoadingMergeCheck ? (
                                 <div className="py-8 text-center text-sm text-muted-foreground flex justify-center items-center">
@@ -614,7 +740,8 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                 </div>
                             ) : (
                                 diffs.map((diff) => {
-                                    const mode = selectedViewModes[diff.path] || 'new';
+                                    const isConflict = diff.isConflict;
+                                    const mode = selectedViewModes[diff.path] || (isConflict ? 'ours' : 'new');
                                     return (
                                         <div
                                             key={diff.path}
@@ -622,11 +749,11 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                             ref={(el) => {
                                                 if (el) diffRefs.current[diff.path] = el;
                                             }}
-                                            className="border rounded-lg bg-card overflow-hidden scroll-mt-6"
+                                            className="border rounded-lg bg-card overflow-hidden scroll-mt-6 shadow-sm hover:shadow-md transition-shadow duration-200"
                                         >
                                             <div className="flex items-center justify-between bg-muted/40 px-4 py-2 border-b">
                                                 <div className="font-mono text-sm font-medium flex items-center gap-2">
-                                                    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${diff.isConflict ? 'bg-red-500/10 text-red-500' :
+                                                    <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${diff.isConflict ? 'bg-red-500/10 text-red-500 animate-pulse' :
                                                         diff.changeType === 'ADD' ? 'bg-green-500/10 text-green-500' :
                                                             diff.changeType === 'DELETE' ? 'bg-red-500/10 text-red-500' :
                                                                 'bg-blue-500/10 text-blue-500'
@@ -635,48 +762,153 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                                     </span>
                                                     <span>{diff.path}</span>
                                                 </div>
-                                                <div className="flex bg-muted rounded-md p-0.5">
-                                                    <button
-                                                        onClick={() => toggleViewMode(diff.path, 'old')}
-                                                        className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${mode === 'old' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                                    >
-                                                        Old File
-                                                    </button>
-                                                    <button
-                                                        onClick={() => toggleViewMode(diff.path, 'new')}
-                                                        className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${mode === 'new' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                                    >
-                                                        Updated File
-                                                    </button>
-                                                </div>
+                                                
+                                                {isConflict ? (
+                                                    <div className="flex bg-muted rounded-md p-0.5">
+                                                        <button
+                                                            onClick={() => toggleViewMode(diff.path, 'base')}
+                                                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors cursor-pointer ${mode === 'base' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                        >
+                                                            Base
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleViewMode(diff.path, 'ours')}
+                                                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors cursor-pointer ${mode === 'ours' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                        >
+                                                            Ours (Repo)
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleViewMode(diff.path, 'theirs')}
+                                                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors cursor-pointer ${mode === 'theirs' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                        >
+                                                            Theirs (Workspace)
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleViewMode(diff.path, 'resolved')}
+                                                            disabled={!resolutions[diff.path] || resolutions[diff.path].resolution === 'PENDING'}
+                                                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${mode === 'resolved' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                        >
+                                                            Resolved
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex bg-muted rounded-md p-0.5">
+                                                        <button
+                                                            onClick={() => toggleViewMode(diff.path, 'old')}
+                                                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors cursor-pointer ${mode === 'old' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                        >
+                                                            Old File
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleViewMode(diff.path, 'new')}
+                                                            className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors cursor-pointer ${mode === 'new' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                                        >
+                                                            Updated File
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="p-4 bg-background">
-                                                {diff.isConflict ? (
+                                                {isConflict ? (
                                                     <div className="space-y-3">
                                                         <div className="text-xs font-mono text-muted-foreground bg-destructive/10 border border-destructive/20 p-2 rounded-md flex items-center justify-between">
-                                                            <span className="font-semibold text-destructive">Conflict Type: {diff.conflictType}</span>
+                                                            <span className="font-semibold text-destructive flex items-center gap-1">
+                                                                <AlertTriangle className="h-3.5 w-3.5" />
+                                                                Conflict Type: {diff.conflictType}
+                                                            </span>
                                                             <span>Base: {diff.baseBlob?.slice(0, 8) ?? 'none'} | Ours: {diff.oursBlob?.slice(0, 8) ?? 'none'} | Theirs: {diff.theirsBlob?.slice(0, 8) ?? 'none'}</span>
                                                         </div>
-                                                        <div className="flex gap-2">
+                                                        <div className="flex items-center gap-3 flex-wrap">
                                                             <Button
                                                                 size="sm"
                                                                 variant={resolutions[diff.path]?.resolution === 'TAKE_OURS' ? 'default' : 'outline'}
-                                                                onClick={() => setResolutions(prev => ({ ...prev, [diff.path]: { resolution: 'TAKE_OURS', resolvedBlob: diff.oursBlob ?? null } }))}
+                                                                onClick={() => {
+                                                                    setResolutions(prev => ({
+                                                                        ...prev,
+                                                                        [diff.path]: {
+                                                                            ...prev[diff.path],
+                                                                            resolution: 'TAKE_OURS',
+                                                                            resolvedBlob: diff.oursBlob ?? null
+                                                                        }
+                                                                    }));
+                                                                    setSelectedViewModes(prev => ({ ...prev, [diff.path]: 'resolved' }));
+                                                                }}
+                                                                className="cursor-pointer transition-all active:scale-[0.98]"
                                                             >
                                                                 Take Ours (Repo HEAD)
                                                             </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant={resolutions[diff.path]?.resolution === 'TAKE_THEIRS' ? 'default' : 'outline'}
-                                                                onClick={() => setResolutions(prev => ({ ...prev, [diff.path]: { resolution: 'TAKE_THEIRS', resolvedBlob: diff.theirsBlob ?? null } }))}
+                                                                onClick={() => {
+                                                                    setResolutions(prev => ({
+                                                                        ...prev,
+                                                                        [diff.path]: {
+                                                                            ...prev[diff.path],
+                                                                            resolution: 'TAKE_THEIRS',
+                                                                            resolvedBlob: diff.theirsBlob ?? null
+                                                                        }
+                                                                    }));
+                                                                    setSelectedViewModes(prev => ({ ...prev, [diff.path]: 'resolved' }));
+                                                                }}
+                                                                className="cursor-pointer transition-all active:scale-[0.98]"
                                                             >
                                                                 Take Theirs (Workspace HEAD)
                                                             </Button>
+                                                            
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="file"
+                                                                    id={`file-upload-${diff.path}`}
+                                                                    className="hidden"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file && resolutions[diff.path]) {
+                                                                            handleFileUpload(diff.path, resolutions[diff.path].conflictId, file);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant={resolutions[diff.path]?.resolution === 'MANUAL' ? 'default' : 'outline'}
+                                                                    disabled={uploadingFiles[diff.path]}
+                                                                    onClick={() => document.getElementById(`file-upload-${diff.path}`)?.click()}
+                                                                    className="gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+                                                                >
+                                                                    {uploadingFiles[diff.path] ? (
+                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                    ) : (
+                                                                        'Upload resolved file'
+                                                                    )}
+                                                                </Button>
+                                                            </div>
+
+                                                            {resolutions[diff.path]?.resolution && resolutions[diff.path]?.resolution !== 'PENDING' && (
+                                                                <span className="text-xs font-semibold text-green-600 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                                                                    Resolved: {resolutions[diff.path].resolution}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <PRFileContentViewer
                                                             repoId={repoId}
-                                                            blobHash={mode === 'old' ? diff.oursBlob : diff.theirsBlob}
-                                                            label={mode === 'old' ? 'Ours (Repo HEAD)' : 'Theirs (Workspace HEAD)'}
+                                                            blobHash={
+                                                                mode === 'base'
+                                                                    ? diff.baseBlob
+                                                                    : mode === 'ours'
+                                                                    ? diff.oursBlob
+                                                                    : mode === 'theirs'
+                                                                    ? diff.theirsBlob
+                                                                    : resolutions[diff.path]?.resolvedBlob
+                                                            }
+                                                            label={
+                                                                mode === 'base'
+                                                                    ? 'Base Version'
+                                                                    : mode === 'ours'
+                                                                    ? 'Ours (Repo HEAD)'
+                                                                    : mode === 'theirs'
+                                                                    ? 'Theirs (Workspace HEAD)'
+                                                                    : 'Resolved Version'
+                                                            }
                                                             filePath={diff.path}
                                                         />
                                                     </div>
