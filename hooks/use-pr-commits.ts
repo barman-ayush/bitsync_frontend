@@ -6,7 +6,11 @@ export interface CommitTrailEntry {
     timestamp: string;
 }
 
-export function usePRCommits(repoId: string | undefined, workspaceId: string | null | undefined) {
+export function usePRCommits(
+    repoId: string | undefined,
+    workspaceId: string | null | undefined,
+    prId?: string
+) {
     const [commits, setCommits] = useState<CommitTrailEntry[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -24,10 +28,15 @@ export function usePRCommits(repoId: string | undefined, workspaceId: string | n
             setIsLoading(true);
             setError(null);
             try {
+                let url = `${process.env.NEXT_PUBLIC_API_URL}/api/pr/commit-trail/${encodeURIComponent(
+                    repoId!
+                )}/${encodeURIComponent(workspaceId!)}`;
+                if (prId) {
+                    url += `/${encodeURIComponent(prId)}`;
+                }
+
                 const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/pr/commit-trail/${encodeURIComponent(
-                        repoId!
-                    )}/${encodeURIComponent(workspaceId!)}`,
+                    url,
                     { credentials: 'include', signal: controller.signal }
                 );
                 

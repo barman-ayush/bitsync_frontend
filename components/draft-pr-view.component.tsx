@@ -73,7 +73,8 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
         newBlobHash: d.newObjectHash ?? null,
     }));
 
-    const canCreatePr = title.trim().length > 0 && !isSubmitting;
+    const hasNoCommits = (!isLoadingCommits && commits.length === 0) || !!(commitsError && (commitsError.includes("No new commits") || commitsError.includes("No commit trail found")));
+    const canCreatePr = title.trim().length > 0 && !isSubmitting && !hasNoCommits;
 
     const scrollToDiff = (diffId: string) => {
         const el = diffRefs.current[diffId];
@@ -198,6 +199,15 @@ export function DraftPrView({ repoId, workspaceId, onBack, onPRCreated }: DraftP
                         </Button>
                     </div>
 
+                    {hasNoCommits && (
+                        <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500 text-sm animate-in fade-in duration-200">
+                            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                            <div>
+                                <p className="font-semibold">There are no commits to create a PR , please make commits</p>
+                            </div>
+                        </div>
+                    )}
+ 
                     {/* Section 1: PR Details (Title & Description) */}
                     <section className="space-y-4">
                         <h2 className="text-lg font-semibold border-b pb-2">PR Details</h2>

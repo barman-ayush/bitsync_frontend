@@ -337,7 +337,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
         setSelectedViewModes((prev) => ({ ...prev, [diffId]: mode }));
     };
 
-    const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, fetchedPr?.workspaceId);
+    const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, fetchedPr?.workspaceId, prId);
     const { mergeability: prMergeability, isLoading: isLoadingMergeability, refresh: refreshMergeability } = usePrMergeability(repoId, fetchedPr?.workspaceId, prId);
     const { files: changesFiles, isLoading: isLoadingChanges, error: changesError, refetch: refetchChanges } = usePrChangesView(
         repoId,

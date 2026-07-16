@@ -62,7 +62,7 @@ export function ReviewerPrDetailsView({ repoId, prId, onBack }: ReviewerPrDetail
 
     // Fetch PR Details, Comments and Commits
     const { pr, isLoading: isLoadingPR, error: prError } = usePRDetails(repoId, prId);
-    const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, pr?.workspaceId);
+    const { commits, isLoading: isLoadingCommits, error: commitsError } = usePRCommits(repoId, pr?.workspaceId, prId);
 
     // Fetch Conflicts & Normal Changes from /api/pr/review-view/:repoId/:workspaceId/:prId
     const [changesData, setChangesData] = useState<{ conflicts: ReviewViewConflict[]; normalChanges: ReviewViewNormalChange[] } | null>(null);

@@ -1,8 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle, Code, Eye, GitBranch, GitFork, GitPullRequest, Star, UserCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Code, GitBranch, GitPullRequest, UserCheck } from 'lucide-react';
 
 export type RepoTabId = 'files' | 'contributors' | 'workspaces' | 'pull-requests' | 'settings' | 'review-requests';
 
@@ -13,20 +11,17 @@ interface RepoTabsProps {
 
 const tabs: { id: RepoTabId; icon: typeof Code; label: string }[] = [
   { id: 'files', icon: Code, label: 'Files' },
+  { id: 'workspaces', icon: GitBranch, label: 'Workspaces' },
   { id: 'pull-requests', icon: GitPullRequest, label: 'Pull Requests' },
   { id: 'review-requests', icon: UserCheck, label: 'Review Requests' },
   { id: 'contributors', icon: CheckCircle, label: 'Contributors' },
-  { id: 'workspaces', icon: GitBranch, label: 'Workspaces' },
   { id: 'settings', icon: AlertCircle, label: 'Settings' },
 ];
 
 export function RepoTabs({ activeTab, onTabChange }: RepoTabsProps) {
-  const [isStarred, setIsStarred] = useState(false);
-  const [isWatched, setIsWatched] = useState(false);
-
   return (
     <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className="flex items-center justify-between px-4">
+      <div className="flex items-center px-4">
         <div className="flex items-center gap-6 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -46,21 +41,6 @@ export function RepoTabs({ activeTab, onTabChange }: RepoTabsProps) {
               </button>
             );
           })}
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => setIsWatched(!isWatched)} className="gap-2">
-            <Eye className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Watch</span>
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setIsStarred(!isStarred)} className="gap-2">
-            <Star className={`h-4 w-4 ${isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
-            <span className="hidden sm:inline text-xs">Star</span>
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <GitFork className="h-4 w-4" />
-            <span className="hidden sm:inline text-xs">Fork</span>
-          </Button>
         </div>
       </div>
     </div>
