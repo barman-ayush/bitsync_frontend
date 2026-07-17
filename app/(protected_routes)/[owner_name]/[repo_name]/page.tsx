@@ -260,11 +260,6 @@ function RepositoryView() {
                         onPrIdChange={setPrId}
                     />
                 )}
-                {activeTab === 'settings' && (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                        Settings view coming soon
-                    </div>
-                )}
             </div>
         </div>
     );

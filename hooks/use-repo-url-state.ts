@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { RepoTabId } from '@/components/repo-tabs.component';
 
-const REPO_TABS: RepoTabId[] = ['files', 'pull-requests', 'review-requests', 'contributors', 'workspaces', 'settings'];
+const REPO_TABS: RepoTabId[] = ['files', 'pull-requests', 'review-requests', 'contributors', 'workspaces'];
 const DEFAULT_TAB: RepoTabId = 'files';
 
 /**

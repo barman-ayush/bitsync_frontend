@@ -119,7 +119,7 @@ export function RepoNavbar() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/profile" className="cursor-pointer">
+                <Link href={user?.username ? `/${user.username}` : '#'} className="cursor-pointer">
                   <UserIcon className="h-4 w-4" />
                   <span>Profile</span>
                 </Link>

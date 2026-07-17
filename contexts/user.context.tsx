@@ -10,6 +10,7 @@ export interface User {
     avatarUrl: string | null;
     emailVerified: boolean;
     createdAt: string;
+    username: string;
 }
 
 interface UserContextValue {
@@ -54,6 +55,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                     avatarUrl: data.avatarUrl,
                     emailVerified: data.emailVerified,
                     createdAt: String(data.createdAt),
+                    username: data.username,
                 });
             } catch (e) {
                 console.log('Failed to fetch user data:', e);

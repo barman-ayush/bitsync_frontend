@@ -65,6 +65,7 @@ export default function LoginPage() {
         avatarUrl: successData.data.avatarUrl,
         emailVerified: successData.data.emailVerified,
         createdAt: String(successData.data.createdAt),
+        username: successData.data.username,
       });
 
       router.push(`/?toast="${successData.message}"&toastType="${successData.status}"`);

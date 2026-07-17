@@ -75,6 +75,7 @@ export default function RegisterPage() {
         avatarUrl: successData.data.avatarUrl,
         emailVerified: successData.data.emailVerified,
         createdAt: String(successData.data.createdAt),
+        username: successData.data.username,
       });
 
       router.push(`/auth/verify-email`);

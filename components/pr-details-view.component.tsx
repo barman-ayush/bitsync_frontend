@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { usePRDetails, PRComment } from '@/hooks/use-pr-details';
 import { usePRCommits } from '@/hooks/use-pr-commits';
@@ -468,7 +469,10 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                     </h1>
                                     <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-muted-foreground">
                                         <span className="flex items-center gap-1">
-                                            <User className="h-4 w-4" /> {pr.author?.username || pr.authorId}
+                                            <User className="h-4 w-4" />
+                                            <Link href={`/${pr.author?.username || pr.authorId}`} className="hover:underline font-semibold text-foreground">
+                                                {pr.author?.displayName || pr.author?.username || pr.authorId}
+                                            </Link>
                                         </span>
                                         <span className="flex items-center gap-1">
                                             <Calendar className="h-4 w-4" /> {new Date(pr.createdAt).toLocaleString()}
@@ -634,7 +638,9 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
                                             <User className="h-4 w-4" />
-                                            <span className="font-semibold text-foreground">{comment.author?.displayName || comment.author?.username || comment.authorId}</span>
+                                            <Link href={`/${comment.author?.username || comment.authorId}`} className="font-semibold text-foreground hover:underline">
+                                                {comment.author?.displayName || comment.author?.username || comment.authorId}
+                                            </Link>
                                             <span>&bull;</span>
                                             <span>{new Date(comment.createdAt).toLocaleString()}</span>
                                         </div>
@@ -955,7 +961,9 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                                     {r.reviewer?.displayName?.slice(0, 2).toUpperCase() || 'U'}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <span className="font-semibold text-foreground">{r.reviewer?.displayName || 'Unknown'}</span>
+                                            <Link href={`/${r.reviewer?.username || r.reviewerId}`} className="font-semibold text-foreground hover:underline">
+                                                {r.reviewer?.displayName || 'Unknown'}
+                                            </Link>
                                         </div>
                                         
                                         {/* Verdict badge */}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Search, GitPullRequest, GitMerge, GitPullRequestClosed, Loader2, AlertCircle, User, Calendar, CheckCircle2, XCircle, HelpCircle, MessageSquare } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ export interface AssignedReviewPR {
         id: string;
         displayName: string;
         email: string;
+        username: string;
     };
 }
 
@@ -285,7 +287,10 @@ export function ReviewRequestsView({ repoId, prId, onPrIdChange }: ReviewRequest
                                                 <span className="font-mono text-[11px] font-semibold text-muted-foreground">#{review.id.slice(0, 6)}</span>
                                                 <span>&bull;</span>
                                                 <span className="flex items-center gap-1">
-                                                    <User className="h-3 w-3" /> By {review.author?.displayName || 'Unknown'}
+                                                    <User className="h-3 w-3" /> By{' '}
+                                                    <Link href={`/${review.author?.username || review.author?.id}`} className="hover:underline font-medium text-foreground">
+                                                        {review.author?.displayName || 'Unknown'}
+                                                    </Link>
                                                 </span>
                                                 <span>&bull;</span>
                                                 <span className="flex items-center gap-1">

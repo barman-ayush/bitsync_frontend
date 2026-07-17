@@ -13,5 +13,6 @@ export type AuthSuccessResponse = {
     avatarUrl : string | null;
     emailVerified : boolean;
     createdAt  : Date;
+    username: string;
 },
 }

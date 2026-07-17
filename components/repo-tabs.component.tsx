@@ -1,8 +1,8 @@
 'use client';
 
-import { AlertCircle, CheckCircle, Code, GitBranch, GitPullRequest, UserCheck } from 'lucide-react';
+import { CheckCircle, Code, GitBranch, GitPullRequest, UserCheck } from 'lucide-react';
 
-export type RepoTabId = 'files' | 'contributors' | 'workspaces' | 'pull-requests' | 'settings' | 'review-requests';
+export type RepoTabId = 'files' | 'contributors' | 'workspaces' | 'pull-requests' | 'review-requests';
 
 interface RepoTabsProps {
   activeTab: RepoTabId;
@@ -15,7 +15,6 @@ const tabs: { id: RepoTabId; icon: typeof Code; label: string }[] = [
   { id: 'pull-requests', icon: GitPullRequest, label: 'Pull Requests' },
   { id: 'review-requests', icon: UserCheck, label: 'Review Requests' },
   { id: 'contributors', icon: CheckCircle, label: 'Contributors' },
-  { id: 'settings', icon: AlertCircle, label: 'Settings' },
 ];
 
 export function RepoTabs({ activeTab, onTabChange }: RepoTabsProps) {

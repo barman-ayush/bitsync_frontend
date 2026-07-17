@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, GitCommit, FileText, User, GitPullRequest, MessageSquare, Loader2, Trash2, AlertCircle, CheckCircle2, XCircle, MinusCircle } from 'lucide-react';
 import { usePRDetails, PRComment } from '@/hooks/use-pr-details';
@@ -319,7 +320,11 @@ export function ReviewerPrDetailsView({ repoId, prId, onBack }: ReviewerPrDetail
                                 Review PR: {pr.title}
                             </h1>
                             <p className="text-xs text-muted-foreground mt-1">
-                                Requested by <span className="font-semibold text-foreground">{pr.author?.displayName || pr.authorId}</span> &bull; Status: <span className="font-semibold text-foreground">{pr.status}</span>
+                                Requested by{' '}
+                                <Link href={`/${pr.author?.username || pr.authorId}`} className="font-semibold text-foreground hover:underline">
+                                    {pr.author?.displayName || pr.authorId}
+                                </Link>{' '}
+                                &bull; Status: <span className="font-semibold text-foreground">{pr.status}</span>
                             </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -425,7 +430,9 @@ export function ReviewerPrDetailsView({ repoId, prId, onBack }: ReviewerPrDetail
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
                                             <User className="h-4 w-4" />
-                                            <span className="font-semibold text-foreground">{comment.author?.displayName || comment.author?.username || comment.authorId}</span>
+                                            <Link href={`/${comment.author?.username || comment.authorId}`} className="font-semibold text-foreground hover:underline">
+                                                {comment.author?.displayName || comment.author?.username || comment.authorId}
+                                            </Link>
                                             <span>&bull;</span>
                                             <span>{new Date(comment.createdAt).toLocaleString()}</span>
                                         </div>
