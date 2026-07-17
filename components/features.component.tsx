@@ -1,4 +1,4 @@
-import { GitBranch, History, Lock, Shield, Users, Zap } from "lucide-react";
+import { GitBranch, GitPullRequest, History, Lock, Users, FolderGit2 } from "lucide-react";
 import { Card } from "./ui/card";
 
 export default function Features() {
@@ -6,42 +6,42 @@ export default function Features() {
         <section id="features" className="px-4 py-20 sm:px-6 lg:px-8 bg-card/30">
             <div className="mx-auto max-w-7xl">
                 <div className="mb-16 text-center space-y-4">
-                    <h2 className="text-4xl font-bold">Powerful features for teams</h2>
+                    <h2 className="text-4xl font-bold">Everything your team needs, nothing they don't</h2>
                     <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                        Everything you need to collaborate effectively and maintain complete control over your files
+                        BitSync strips version control down to the essentials — so your team can focus on the work, not the tooling.
                     </p>
                 </div>
                 <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
                     {[
                         {
+                            icon: FolderGit2,
+                            title: 'Repositories',
+                            description: 'Organize your projects into repositories. Each one gets its own history, contributors, and workspaces.',
+                        },
+                        {
                             icon: GitBranch,
-                            title: 'Version Control',
-                            description: 'Track every change with a complete history. Revert to any previous version instantly.',
+                            title: 'Workspaces',
+                            description: 'Every contributor gets their own workspace. Make changes independently and merge when you\'re ready — no stepping on each other\'s toes.',
+                        },
+                        {
+                            icon: GitPullRequest,
+                            title: 'Pull Requests',
+                            description: 'Propose changes, describe what you did, and assign reviewers. A structured way to get work merged without confusion.',
                         },
                         {
                             icon: Users,
-                            title: 'Real-time Collaboration',
-                            description: 'Work together seamlessly. See live edits from your team members as they happen.',
-                        },
-                        {
-                            icon: Lock,
-                            title: 'Enterprise Security',
-                            description: 'Bank-level encryption, access controls, and compliance with industry standards.',
-                        },
-                        {
-                            icon: Zap,
-                            title: 'Instant Sync',
-                            description: 'Changes sync across all devices instantly. Never lose work again.',
+                            title: 'Reviews & Approvals',
+                            description: 'Reviewers can look at exactly what changed, leave comments, and approve or request changes before anything gets merged.',
                         },
                         {
                             icon: History,
-                            title: 'Change Tracking',
-                            description: 'See who changed what and when. Detailed audit trails for accountability.',
+                            title: 'Commit History',
+                            description: 'Every change is tracked with a full commit trail. See who changed what, when, and why — across any workspace.',
                         },
                         {
-                            icon: Shield,
-                            title: 'Data Protection',
-                            description: 'Automatic backups and disaster recovery. Your data is always safe.',
+                            icon: Lock,
+                            title: 'Roles & Permissions',
+                            description: 'Control who can do what. Owners, admins, and members each have their own level of access to keep things secure.',
                         },
                     ].map((feature, idx) => {
                         const Icon = feature.icon;

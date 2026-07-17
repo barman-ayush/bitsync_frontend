@@ -42,12 +42,7 @@ export default function LandingaNavbar() {
                     </div>
                     <span className="text-xl font-semibold">BitSync</span>
                 </div>
-                <div className="hidden md:flex items-center gap-8">
-                    <a href="#features" className="text-sm font-medium hover:text-primary transition">Features</a>
-                    <a href="#security" className="text-sm font-medium hover:text-primary transition">Security</a>
-                    <a href="#pricing" className="text-sm font-medium hover:text-primary transition">Pricing</a>
-                </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     <ThemeToggle />
                     {
                         !user ?
@@ -56,13 +51,18 @@ export default function LandingaNavbar() {
                                     <Link href="/auth/login">
                                         <Button variant="outline" className="hidden sm:flex">Sign In</Button>
                                     </Link>
-                                    <Button className="bg-primary hover:bg-primary/90">Get Started</Button>
+                                    <Link href="/auth/register">
+                                        <Button className="bg-primary hover:bg-primary/90">Create Account</Button>
+                                    </Link>
                                 </>
                             ) :
                             (
                                 <>
                                     <NotificationsButton />
-                                    <Button onClick={handleLogout} className="bg-primary hover:bg-primary/90">Logout</Button>
+                                    <Link href="/repositories">
+                                        <Button className="bg-primary hover:bg-primary/90">Get Started</Button>
+                                    </Link>
+                                    <Button onClick={handleLogout} variant="ghost" className="text-muted-foreground hover:text-foreground">Logout</Button>
                                 </>
                             )
                     }
