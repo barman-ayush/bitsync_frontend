@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileItem } from '@/types/files';
 import { FileMetadataSidebar } from './file-metadata-sidebar.component';
 import { File, Folder, MoreVertical, LayoutList, Grid3x3, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { SafeFileContentRenderer } from './safe-file-content-renderer.component';
 
 export interface PathSegment {
     name: string;
@@ -20,6 +21,7 @@ interface FileBrowserProps {
     pathStack: PathSegment[];
     onFolderClick: (file: FileItem) => void;
     onBreadcrumbClick: (index: number) => void;
+    repoId: string;
 }
 
 type ViewMode = 'list' | 'grid';
@@ -32,9 +34,63 @@ export function FileBrowser({
     pathStack,
     onFolderClick,
     onBreadcrumbClick,
+    repoId,
 }: FileBrowserProps) {
     const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
     const [viewMode, setViewMode] = useState<ViewMode>('list');
+    const [fileContentUrl, setFileContentUrl] = useState<string | null>(null);
+    const [isFileLoading, setIsFileLoading] = useState(false);
+    const [fileError, setFileError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!selectedFile || !repoId) {
+            setFileContentUrl(null);
+            setIsFileLoading(false);
+            setFileError(null);
+            return;
+        }
+
+        const controller = new AbortController();
+        setIsFileLoading(true);
+        setFileContentUrl(null);
+        setFileError(null);
+
+        (async () => {
+            try {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/api/workspace/blob/${encodeURIComponent(
+                        repoId,
+                    )}/${encodeURIComponent(selectedFile.id)}`,
+                    { credentials: 'include', signal: controller.signal },
+                );
+                if (controller.signal.aborted) return;
+
+                if (!res.ok) {
+                    const body = await res.json().catch(() => null);
+                    setFileError(body?.message ?? `Request failed with ${res.status}`);
+                    setIsFileLoading(false);
+                    return;
+                }
+
+                const body = await res.json();
+                const blobUrl = body?.data?.url;
+                if (!blobUrl) {
+                    setFileError('Received invalid response from server (missing URL).');
+                    setIsFileLoading(false);
+                    return;
+                }
+
+                setFileContentUrl(blobUrl);
+                setIsFileLoading(false);
+            } catch (e: any) {
+                if (controller.signal.aborted) return;
+                setFileError(e.message ?? 'Network error');
+                setIsFileLoading(false);
+            }
+        })();
+
+        return () => controller.abort();
+    }, [selectedFile, repoId]);
 
     const handleFileClick = (file: FileItem) => {
         if (file.type === 'folder') {
@@ -43,6 +99,81 @@ export function FileBrowser({
             setSelectedFile(file);
         }
     };
+
+    if (selectedFile) {
+        return (
+            <div className="flex h-full flex-col bg-background w-full">
+                {/* Header/Toolbar */}
+                <div className="sticky top-0 bg-card/50 backdrop-blur border-b border-border px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-sm flex-wrap">
+                        <button
+                            onClick={() => {
+                                setSelectedFile(null);
+                                onBreadcrumbClick(-1);
+                            }}
+                            className="text-muted-foreground hover:text-foreground transition font-medium"
+                        >
+                            {repoName}
+                        </button>
+                        {pathStack.map((segment, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5 text-muted-foreground">
+                                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                                <button
+                                    onClick={() => {
+                                        setSelectedFile(null);
+                                        onBreadcrumbClick(idx);
+                                    }}
+                                    className="hover:text-foreground transition font-medium text-muted-foreground"
+                                >
+                                    {segment.name}
+                                </button>
+                            </div>
+                        ))}
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                            <span className="text-foreground font-semibold cursor-default select-none">
+                                {selectedFile.name}
+                            </span>
+                        </div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setSelectedFile(null)}>
+                        Back to Files
+                    </Button>
+                </div>
+
+                <div className="flex-1 overflow-auto">
+                    <div className="p-6">
+                        <div className="rounded-lg border border-border bg-card">
+                            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                                <span className="truncate font-mono">{selectedFile.name}</span>
+                                <span className="shrink-0">
+                                    {typeof selectedFile.size === 'number'
+                                        ? formatFileSize(selectedFile.size)
+                                        : '—'}
+                                </span>
+                            </div>
+
+                            {isFileLoading ? (
+                                <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                                    <Spinner className="h-4 w-4 animate-spin text-primary" /> Loading file…
+                                </div>
+                            ) : fileError ? (
+                                <div className="py-12 text-center text-sm text-destructive">
+                                    {fileError}
+                                </div>
+                            ) : fileContentUrl ? (
+                                <SafeFileContentRenderer url={fileContentUrl} filePath={selectedFile.name} />
+                            ) : (
+                                <div className="py-12 text-center text-sm text-muted-foreground">
+                                    No content available for this file.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-full">

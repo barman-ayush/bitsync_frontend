@@ -215,6 +215,7 @@ function RepositoryView() {
                             error={filesError}
                             repoName={repository?.name ?? ''}
                             pathStack={pathStack}
+                            repoId={repoId!}
                             onFolderClick={(file) => {
                                 setPathStack((prev) => [...prev, { name: file.name, treeHash: file.id }]);
                                 setCurrentTreeHash(file.id);

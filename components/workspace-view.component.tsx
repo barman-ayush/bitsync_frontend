@@ -331,9 +331,10 @@ export function WorkspaceView({
 
     const handleCommit = async (message: string) => {
         const result = await commit.commit(message);
-        // A successful commit clears the workspace's uncommitted changes — re-check
-        // so the commit button disables again.
-        if (result) workspaceStatus.refresh();
+        if (result) {
+            workspaceStatus.refresh();
+            prStatus.refresh();
+        }
         return result;
     };
 
