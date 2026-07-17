@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="50%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  
+  <!-- Outer glowing ring -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#accentGrad)" stroke-width="12" stroke-dasharray="10 20 30 20" opacity="0.3" />
+
+  <!-- Inner Sync/Bit Sync Graphic -->
+  <g filter="url(#glow)">
+    <!-- Sync Arrow 1 -->
+    <path d="M 256,110 A 146,146 0 0,1 402,256 L 362,256 A 106,106 0 0,0 256,150 L 256,180 L 206,130 L 256,80 Z" fill="url(#accentGrad)" />
+    <!-- Sync Arrow 2 -->
+    <path d="M 256,402 A 146,146 0 0,1 110,256 L 150,256 A 106,106 0 0,0 256,362 L 256,332 L 306,382 L 256,432 Z" fill="url(#accentGrad)" />
+    
+    <!-- Central Binary Bit / Git Node symbol -->
+    <circle cx="256" cy="256" r="44" fill="url(#accentGrad)" />
+    <circle cx="256" cy="256" r="28" fill="#ffffff" />
+    
+    <!-- Orbiting nodes -->
+    <circle cx="362" cy="180" r="14" fill="#60a5fa" />
+    <line x1="362" y1="180" x2="310" y2="220" stroke="#60a5fa" stroke-width="4" stroke-dasharray="4 4" />
+    
+    <circle cx="150" cy="332" r="14" fill="#34d399" />
+    <line x1="150" y1="332" x2="202" y2="292" stroke="#34d399" stroke-width="4" stroke-dasharray="4 4" />
+  </g>
+</svg>
