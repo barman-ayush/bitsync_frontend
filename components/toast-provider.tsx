@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Toast from './toast';
 
@@ -26,9 +26,9 @@ export const useToast = () => {
   return context;
 };
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+function ToastUrlListener() {
   const searchParams = useSearchParams();
+  const { addToast } = useToast();
   const [handledToast, setHandledToast] = useState(false);
 
   // Handle toast from URL params on mount
@@ -55,7 +55,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
       window.history.replaceState(null, '', newUrl);
     }
-  }, [searchParams, handledToast]);
+  }, [searchParams, handledToast, addToast]);
+
+  return null;
+}
+
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = (message: string, type: ToastMessage['type'] = 'info') => {
     const id = Date.now().toString();
@@ -76,6 +82,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
+      <Suspense fallback={null}>
+        <ToastUrlListener />
+      </Suspense>
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-sm">
         {toasts.map((toast) => (
           <Toast
