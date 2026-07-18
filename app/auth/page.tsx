@@ -207,8 +207,8 @@ function AuthView() {
         {/* Heading with styled pop highlights and hero text */}
         <div className="relative z-10 max-w-lg space-y-6">
           <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">
-            Version control <br />
-            <span className="bg-primary px-2 py-0.5 text-primary-foreground rounded inline-block">made effortless</span>
+            Version control that<br />
+            <span className="bg-primary px-2 py-0.5 text-white rounded inline-block">doesn&apos;t fight you back.</span>
           </h1>
           <p className="text-base text-slate-300 drop-shadow-sm leading-relaxed">
             Not everyone lives in a terminal. BitSync brings the power of version control — repositories, workspaces, pull requests, and reviews — into a clean interface that anyone on your team can pick up in minutes.
