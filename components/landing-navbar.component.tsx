@@ -48,10 +48,10 @@ export default function LandingaNavbar() {
                         !user ?
                             (
                                 <>
-                                    <Link href="/auth/login">
+                                    <Link href="/auth">
                                         <Button variant="outline" className="hidden sm:flex">Sign In</Button>
                                     </Link>
-                                    <Link href="/auth/register">
+                                    <Link href="/auth?mode=register">
                                         <Button className="bg-primary hover:bg-primary/90">Create Account</Button>
                                     </Link>
                                 </>

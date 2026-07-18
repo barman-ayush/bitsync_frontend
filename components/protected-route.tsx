@@ -13,11 +13,19 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.push(`/auth/login?toast="Please login to continue!!"&toastType="error"`);
+      router.push(`/auth?toast="Please login to continue!!"&toastType="error"`);
+      return;
+    }
+    if (!user.emailVerified) {
+      router.push('/auth/verify-email');
     }
   }, [user, isLoading]);
 
   if (isLoading || !user) {
+    return null;
+  }
+
+  if (!user.emailVerified) {
     return null;
   }
 

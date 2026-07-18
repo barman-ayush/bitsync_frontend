@@ -13,7 +13,7 @@ export default function Hero() {
                             Version Control, Simplified
                         </div>
                         <h1 className="text-5xl sm:text-6xl font-bold leading-tight text-balance">
-                            Version control that gets out of your way
+                            Version control, made effortless
                         </h1>
                         <p className="text-lg text-muted-foreground max-w-2xl">
                             Not everyone lives in a terminal. BitSync brings the power of version control — repositories, workspaces, pull requests, and reviews — into a clean interface that anyone on your team can pick up in minutes.

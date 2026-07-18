@@ -22,8 +22,8 @@ export default function Footer() {
                     <div>
                         <h4 className="font-semibold mb-4">Account</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href="/auth/login" className="hover:text-foreground transition">Sign In</a></li>
-                            <li><a href="/auth/register" className="hover:text-foreground transition">Create Account</a></li>
+                            <li><a href="/auth" className="hover:text-foreground transition">Sign In</a></li>
+                            <li><a href="/auth?mode=register" className="hover:text-foreground transition">Create Account</a></li>
                         </ul>
                     </div>
                 </div>
