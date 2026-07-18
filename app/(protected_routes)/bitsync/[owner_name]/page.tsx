@@ -270,7 +270,7 @@ export default function ProfilePage() {
                                     <div className="space-y-2 max-w-xl">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <Link
-                                                href={`/${user.username}/${repo.name}`}
+                                                href={`/bitsync/${user.username}/${repo.name}`}
                                                 className="text-xl font-bold text-blue-500 hover:underline hover:text-blue-600 transition"
                                             >
                                                 {repo.name}

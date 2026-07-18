@@ -91,7 +91,7 @@ export function RepoList({ data, status, error, page, onPageChange }: RepoListPr
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <Link
-                                            href={`/${repo.owner.username}/${repo.name}`}
+                                            href={`/bitsync/${repo.owner.username}/${repo.name}`}
                                             className="text-base text-foreground hover:underline"
                                         >
                                             <span className="text-muted-foreground">{repo.owner.username}/</span>

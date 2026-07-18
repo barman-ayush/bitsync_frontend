@@ -470,7 +470,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                     <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-muted-foreground">
                                         <span className="flex items-center gap-1">
                                             <User className="h-4 w-4" />
-                                            <Link href={`/${pr.author?.username || pr.authorId}`} className="hover:underline font-semibold text-foreground">
+                                            <Link href={`/bitsync/${pr.author?.username || pr.authorId}`} className="hover:underline font-semibold text-foreground">
                                                 {pr.author?.displayName || pr.author?.username || pr.authorId}
                                             </Link>
                                         </span>
@@ -638,7 +638,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
                                             <User className="h-4 w-4" />
-                                            <Link href={`/${comment.author?.username || comment.authorId}`} className="font-semibold text-foreground hover:underline">
+                                            <Link href={`/bitsync/${comment.author?.username || comment.authorId}`} className="font-semibold text-foreground hover:underline">
                                                 {comment.author?.displayName || comment.author?.username || comment.authorId}
                                             </Link>
                                             <span>&bull;</span>
@@ -961,7 +961,7 @@ export function PRDetailsView({ repoId, prId, onBack }: PRDetailsViewProps) {
                                                     {r.reviewer?.displayName?.slice(0, 2).toUpperCase() || 'U'}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <Link href={`/${r.reviewer?.username || r.reviewerId}`} className="font-semibold text-foreground hover:underline">
+                                            <Link href={`/bitsync/${r.reviewer?.username || r.reviewerId}`} className="font-semibold text-foreground hover:underline">
                                                 {r.reviewer?.displayName || 'Unknown'}
                                             </Link>
                                         </div>

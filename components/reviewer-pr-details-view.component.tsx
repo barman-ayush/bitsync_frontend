@@ -321,7 +321,7 @@ export function ReviewerPrDetailsView({ repoId, prId, onBack }: ReviewerPrDetail
                             </h1>
                             <p className="text-xs text-muted-foreground mt-1">
                                 Requested by{' '}
-                                <Link href={`/${pr.author?.username || pr.authorId}`} className="font-semibold text-foreground hover:underline">
+                                <Link href={`/bitsync/${pr.author?.username || pr.authorId}`} className="font-semibold text-foreground hover:underline">
                                     {pr.author?.displayName || pr.authorId}
                                 </Link>{' '}
                                 &bull; Status: <span className="font-semibold text-foreground">{pr.status}</span>
@@ -430,7 +430,7 @@ export function ReviewerPrDetailsView({ repoId, prId, onBack }: ReviewerPrDetail
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
                                             <User className="h-4 w-4" />
-                                            <Link href={`/${comment.author?.username || comment.authorId}`} className="font-semibold text-foreground hover:underline">
+                                            <Link href={`/bitsync/${comment.author?.username || comment.authorId}`} className="font-semibold text-foreground hover:underline">
                                                 {comment.author?.displayName || comment.author?.username || comment.authorId}
                                             </Link>
                                             <span>&bull;</span>

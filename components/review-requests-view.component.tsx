@@ -288,7 +288,7 @@ export function ReviewRequestsView({ repoId, prId, onPrIdChange }: ReviewRequest
                                                 <span>&bull;</span>
                                                 <span className="flex items-center gap-1">
                                                     <User className="h-3 w-3" /> By{' '}
-                                                    <Link href={`/${review.author?.username || review.author?.id}`} className="hover:underline font-medium text-foreground">
+                                                    <Link href={`/bitsync/${review.author?.username || review.author?.id}`} className="hover:underline font-medium text-foreground">
                                                         {review.author?.displayName || 'Unknown'}
                                                     </Link>
                                                 </span>

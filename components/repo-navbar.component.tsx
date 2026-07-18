@@ -17,7 +17,9 @@ import {
 
 export function RepoNavbar() {
   const pathname = usePathname();
-  const pagination = pathname.split('/').filter(Boolean);
+  const rawSegments = pathname.split('/').filter(Boolean);
+  const isBitsyncRoute = rawSegments[0] === 'bitsync';
+  const pagination = isBitsyncRoute ? rawSegments.slice(1) : rawSegments;
   const { user, clearUser, setIsLoading } = useUser();
   const router = useRouter();
   const fallbackInitial = user?.displayName?.charAt(0).toUpperCase() ?? '?';
@@ -53,7 +55,7 @@ export function RepoNavbar() {
           </div>
           {pagination.map((segment, index) => {
             const isLast = index === pagination.length - 1;
-            const href = '/' + pagination.slice(0, index + 1).join('/');
+            const href = (isBitsyncRoute ? '/bitsync' : '') + '/' + pagination.slice(0, index + 1).join('/');
             return (
               <span key={index} className="flex items-center gap-2 min-w-0">
                 {isLast ? (
@@ -119,7 +121,7 @@ export function RepoNavbar() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={user?.username ? `/${user.username}` : '#'} className="cursor-pointer">
+                <Link href={user?.username ? `/bitsync/${user.username}` : '#'} className="cursor-pointer">
                   <UserIcon className="h-4 w-4" />
                   <span>Profile</span>
                 </Link>
